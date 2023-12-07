@@ -342,6 +342,89 @@ class Upload:
         connection.add_to_action_log(table_name, self.action, len(data), 'Update')
         connection.close_connection()
 
+    def protocols_info(self):
 
-    def token_contracts(self):
-        pass
+        # ----- Get Table info
+        table_name = 'protocols_info'
+        connection = Connection()
+        dicTableInfo = connection.get_table_info(table_name)
+        # -----/
+
+        connection.clear_whole_table(table_name)
+
+        if len(self.chains.list) == 0:
+            if len(self.protocols.all_protocols) == 0:
+                self.protocols.get_all_data()
+            if len(self.pools.list) == 0:
+                self.pools.get_all_pools()
+
+
+        data = []
+        for protocol in self.protocols.all_protocols.values():
+            data_row = ()
+            data_row = (f'{protocol.id}',
+                        f'{protocol.name}',
+                        f'{protocol.chain}',
+                        f'{protocol.symbol}',
+                        f'{protocol.url}',
+                        protocol.listedAt,
+                        f'{protocol.gecko_id}' if not protocol.gecko_id is None else None,
+                        f'{protocol.twitter}',
+                        f'{protocol.category}',
+                        f'{protocol.slug}'
+                        )
+
+            data.append(data_row)
+        # -----/
+
+        columns = dicTableInfo['columns']
+        connection.insert_to_table(table_name, columns, data)
+        connection.add_to_action_log(table_name, self.action, len(data), 'Update')
+        connection.close_connection()
+
+    def categories_history(self, overWriteTheDay: bool = False):
+
+        # ----- Get Table info
+        table_name = 'categories_history'
+        connection = Connection()
+        dicTableInfo = connection.get_table_info(table_name)
+        # -----/
+
+        if dicTableInfo['upload_last_date'] is None or \
+                (dicTableInfo['upload_last_date'] != datetime.datetime.now().date() or \
+                 overWriteTheDay):
+
+            if dicTableInfo['upload_last_date'] == datetime.datetime.now().date():
+                connection.delete_day_from_table(table_name)
+                connection.delete_log_entry(table_name, 'Data upload')
+
+            if len(self.protocols.all_protocols) == 0:
+                self.protocols.get_all_data()
+
+
+            dicCategories = {}
+            for protocol in self.protocols.all_protocols.values():
+                if not protocol.category in dicCategories:
+                    dicCategories[protocol.category] = 1
+                else:
+                    dicCategories[protocol.category] += 1
+
+
+            data = []
+            for category, count in dicCategories.items():
+                data_row = ()
+                data_row = (f'{datetime.datetime.now().date()}',
+                            f'{category}',
+                            count)
+
+                data.append(data_row)
+            # -----/
+
+            columns = dicTableInfo['columns']
+            connection.insert_to_table(table_name, columns, data)
+            connection.add_to_action_log(table_name, self.action, len(data), '-')
+            connection.close_connection()
+
+        else:
+            print(f'{table_name} already uploaded for {datetime.datetime.now().date()}')
+            connection.close_connection()

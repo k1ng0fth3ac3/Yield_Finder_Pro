@@ -74,6 +74,13 @@ class Create_table:
         self.connection.create_table(table_name,dicCols)
         self.connection.add_to_action_log(table_name,self.action,0,f'{len(dicCols)} columns')
 
+    def categories_history(self):
+        table_name = 'categories_history'
+
+        dicCols = self.table_info.categories_history()
+
+        self.connection.create_table(table_name, dicCols)
+        self.connection.add_to_action_log(table_name, self.action, 0, f'{len(dicCols)} columns')
 
 
 class Tables_info:
@@ -153,18 +160,14 @@ class Tables_info:
         dicCols['id'] = 'SERIAL PRIMARY KEY'
         dicCols['protocol_id'] = 'INT'
         dicCols['name'] = 'VARCHAR(100)'
-        dicCols['address'] = 'VARCHAR(100)'
+        dicCols['chain'] = 'VARCHAR(40)'
         dicCols['symbol'] = 'VARCHAR(20)'
         dicCols['url'] = 'VARCHAR(255)'
         dicCols['listed_at'] = 'DECIMAL(10,0)'
         dicCols['gecko_id'] = 'VARCHAR(50)'
-        dicCols['cmc_id'] = 'INT'
         dicCols['twitter'] = 'VARCHAR(100)'
         dicCols['category'] = 'VARCHAR(50)'
         dicCols['slug'] = 'VARCHAR(40)'
-        dicCols['chains_ref'] = 'INT'
-        dicCols['chain_count'] = 'INT'
-        dicCols['chains'] = 'VARCHAR(255)'
 
         return dicCols
 
@@ -200,5 +203,14 @@ class Tables_info:
         dicCols['tvl'] = 'DECIMAL(12,0)'
         dicCols['volume'] = 'DECIMAL(12,0)'
         dicCols['fees'] = 'DECIMAL(12,0)'
+
+        return dicCols
+
+    def categories_history(self):
+        dicCols = {}
+        dicCols['id'] = 'SERIAL PRIMARY KEY'
+        dicCols['date'] = 'DATE'
+        dicCols['category'] = 'VARCHAR(50)'
+        dicCols['protocol_count'] = 'INT'
 
         return dicCols
