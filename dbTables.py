@@ -82,6 +82,14 @@ class Create_table:
         self.connection.create_table(table_name, dicCols)
         self.connection.add_to_action_log(table_name, self.action, 0, f'{len(dicCols)} columns')
 
+    def pools_info(self):
+        table_name = 'pools_info'
+
+        dicCols = self.table_info.pools_info()
+
+        self.connection.create_table(table_name, dicCols)
+        self.connection.add_to_action_log(table_name, self.action, 0, f'{len(dicCols)} columns')
+
 
 class Tables_info:
 
@@ -131,26 +139,12 @@ class Tables_info:
         dicCols['id'] = 'SERIAL PRIMARY KEY'
         dicCols['pool_id'] = 'VARCHAR(40)'
         dicCols['date'] = 'DATE'
-        dicCols['chain'] = 'VARCHAR(35)'
-        dicCols['project'] = 'VARCHAR(40)'
-        dicCols['symbol'] = 'VARCHAR(100)'
         dicCols['tvl'] = 'DECIMAL(12,0)'
         dicCols['apy_base'] = 'DECIMAL(12,4)'
         dicCols['apy_reward'] = 'DECIMAL(12,4)'
         dicCols['apy'] = 'DECIMAL(12,4)'
-        dicCols['stable_coin'] = 'BOOL'
-        dicCols['il_risk'] = 'BOOL'
-        dicCols['exposure_multi'] = 'BOOL'
-        dicCols['pool_meta'] = 'VARCHAR(255)'
-        dicCols['mu'] = 'DECIMAL(12,3)'
-        dicCols['sigma'] = 'DECIMAL(7,4)'
-        dicCols['count'] = 'INT'
-        dicCols['reward_token_1'] = 'VARCHAR(255)'
-        dicCols['reward_token_2'] = 'VARCHAR(255)'
-        dicCols['pool_token_1'] = 'VARCHAR(255)'
-        dicCols['pool_token_2'] = 'VARCHAR(255)'
-        dicCols['pool_token_3'] = 'VARCHAR(255)'
         dicCols['volume'] = 'DECIMAL(12,0)'
+        dicCols['pool_info_id'] = 'INT'
 
         return dicCols
 
@@ -178,7 +172,6 @@ class Tables_info:
         dicCols['id'] = 'SERIAL PRIMARY KEY'
         dicCols['protocol_id'] = 'INT'
         dicCols['date'] = 'DATE'
-        dicCols['name'] = 'VARCHAR(100)'
         dicCols['tvl'] = 'DECIMAL(12,0)'
         dicCols['volume'] = 'DECIMAL(12,0)'
         dicCols['fees'] = 'DECIMAL(10,0)'
@@ -199,7 +192,6 @@ class Tables_info:
         dicCols['chain'] = 'VARCHAR(35)'
         dicCols['date'] = 'DATE'
         dicCols['protocol_id'] = 'INT'
-        dicCols['protocol_name'] = 'VARCHAR(100)'
         dicCols['tvl'] = 'DECIMAL(12,0)'
         dicCols['volume'] = 'DECIMAL(12,0)'
         dicCols['fees'] = 'DECIMAL(12,0)'
@@ -212,5 +204,25 @@ class Tables_info:
         dicCols['date'] = 'DATE'
         dicCols['category'] = 'VARCHAR(50)'
         dicCols['protocol_count'] = 'INT'
+
+        return dicCols
+
+    def pools_info(self):
+        dicCols = {}
+        dicCols['id'] = 'SERIAL PRIMARY KEY'
+        dicCols['pool_id'] = 'VARCHAR(40)'
+        dicCols['date_added'] = 'DATE'
+        dicCols['chain'] = 'VARCHAR(35)'
+        dicCols['project'] = 'VARCHAR(40)'
+        dicCols['symbol'] = 'VARCHAR(100)'
+        dicCols['stable_coin'] = 'BOOL'
+        dicCols['il_risk'] = 'BOOL'
+        dicCols['exposure_multi'] = 'BOOL'
+        dicCols['pool_meta'] = 'VARCHAR(255)'
+        dicCols['reward_token_1'] = 'VARCHAR(255)'
+        dicCols['reward_token_2'] = 'VARCHAR(255)'
+        dicCols['pool_token_1'] = 'VARCHAR(255)'
+        dicCols['pool_token_2'] = 'VARCHAR(255)'
+        dicCols['pool_token_3'] = 'VARCHAR(255)'
 
         return dicCols
