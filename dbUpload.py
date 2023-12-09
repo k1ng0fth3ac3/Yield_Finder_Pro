@@ -19,6 +19,9 @@ class Upload:
 
     def pools_history(self, overWriteTheDay: bool = False):
 
+        # We will only take pools that have had at least 20% APY (at any point)
+
+
         # ----- Get Table info
         table_name = 'pools_history'
         connection = Connection()
@@ -36,6 +39,7 @@ class Upload:
             if len(self.pools.list) == 0:
                 self.pools.get_all_pools(getFreshData=True)
 
+            dicPoolIds = connection.get_uniq_values_from_col('pools_info','pool_id','id')
 
             data = []
             for pool in self.pools.list.values():
@@ -62,32 +66,19 @@ class Upload:
                         pool_tokens[i] = pool.underlyingTokens[i]
                 # ------/
 
+                if pool.pool in dicPoolIds:
+                    pool_id = dicPoolIds[pool.pool]     # If pool not in pools_info, the APY is below required
 
-                data_row = ()
-                data_row = (f'{pool.pool}',
-                            f'{datetime.datetime.now().date()}',
-                            f'{pool.chain[:35]}',
-                            f'{pool.project[:40]}',
-                            f'{pool.symbol[:100]}',
-                            pool.tvlUsd,
-                            pool.apyBase,
-                            pool.apyReward,
-                            pool.apy,
-                            pool.stablecoin,
-                            pool.ilRisk == 'yes',
-                            pool.exposure == 'multi',
-                            f'{pool.poolMeta[:255]}' if pool.poolMeta is not None else None,
-                            pool.mu,
-                            pool.sigma,
-                            pool.count,
-                            f'{reward_token_1}' if reward_token_1 is not None else None,
-                            f'{reward_token_2}' if reward_token_2 is not None else None,
-                            f'{pool_tokens[0]}' if pool_tokens[0] is not None else None,
-                            f'{pool_tokens[1]}' if pool_tokens[1] is not None else None,
-                            f'{pool_tokens[2]}' if pool_tokens[2] is not None else None,
-                            pool.volumeUsd1d)
+                    data_row = ()
+                    data_row = (f'{datetime.datetime.now().date()}',
+                                pool.tvlUsd,
+                                pool.apyBase,
+                                pool.apyReward,
+                                pool.apy,
+                                pool.volumeUsd1d,
+                                pool_id)
 
-                data.append(data_row)
+                    data.append(data_row)
 
             columns = dicTableInfo['columns']
 
@@ -428,3 +419,78 @@ class Upload:
         else:
             print(f'{table_name} already uploaded for {datetime.datetime.now().date()}')
             connection.close_connection()
+
+    def pools_info(self):
+
+        # DO NOT OVERRIDE ANY DATA
+        # The ID is used as the Key to connect to pools_history
+        # Only upload NEW pools that didn't exist before
+        # Only pools that have at least 20% APY will be included (that will be also used for the pools_history)
+
+
+        # ----- Get Table info
+        table_name = 'pools_info'
+        connection = Connection()
+        dicTableInfo = connection.get_table_info(table_name)
+        dicExistingPools = connection.get_uniq_values_from_col(table_name,'pool_id')
+        # -----/
+
+        if len(self.pools.list) == 0:
+            self.pools.get_all_pools(getFreshData=True)
+
+        data = []
+        for pool in self.pools.list.values():
+            if not pool.pool in dicExistingPools:
+                if pool.apy > 19.9:
+
+                    # ----- Reward tokens
+                    if pool.rewardTokens is None or len(pool.rewardTokens) == 0:
+                        reward_token_1 = None
+                        reward_token_2 = None
+                    elif len(pool.rewardTokens) == 1:
+                        reward_token_1 = pool.rewardTokens[0]
+                        reward_token_2 = None
+                    else:
+                        reward_token_1 = pool.rewardTokens[0]
+                        reward_token_2 = pool.rewardTokens[1]
+                    # ------/
+
+                    # ------ Pool Underlying Tokens
+                    pool_tokens = {}
+                    pool_tokens[0] = None
+                    pool_tokens[1] = None
+                    pool_tokens[2] = None
+                    if not pool.underlyingTokens is None:
+                        for i in range(0,len(pool.underlyingTokens)):
+                            pool_tokens[i] = pool.underlyingTokens[i]
+                    # ------/
+
+
+                    data_row = ()
+                    data_row = (f'{pool.pool}',
+                                f'{datetime.datetime.now().date()}',
+                                f'{pool.chain[:35]}',
+                                f'{pool.project[:40]}',
+                                f'{pool.symbol[:100]}',
+                                pool.stablecoin,
+                                pool.ilRisk == 'yes',
+                                pool.exposure == 'multi',
+                                f'{pool.poolMeta[:255]}' if pool.poolMeta is not None else None,
+                                f'{reward_token_1}' if reward_token_1 is not None else None,
+                                f'{reward_token_2}' if reward_token_2 is not None else None,
+                                f'{pool_tokens[0]}' if pool_tokens[0] is not None else None,
+                                f'{pool_tokens[1]}' if pool_tokens[1] is not None else None,
+                                f'{pool_tokens[2]}' if pool_tokens[2] is not None else None
+                                )
+
+                    data.append(data_row)
+        # -----/
+
+        if len(data) > 0:
+            columns = dicTableInfo['columns']
+            connection.insert_to_table(table_name, columns, data)
+            connection.add_to_action_log(table_name, self.action, len(data), '-')
+        else:
+            connection.add_to_action_log(table_name, self.action, len(data), 'No new Pools')
+
+        connection.close_connection()
