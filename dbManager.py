@@ -172,3 +172,41 @@ class Connection:
         self.conn.commit()
 
         print(f'Cleared table {table_name}')
+
+
+    def get_uniq_values_from_col(self, table_name: str, col_name: str, col_2_name: str = None):
+
+        # If we have only 1 column, we get count of occurances
+        # If we have 2 columns, the Column 1 will be the dic Key and the Col 2 will be a value.
+
+        dicData = {}
+
+        if col_2_name is None:
+            query = f"""
+                  SELECT  {col_name},
+                          COUNT({col_name}) AS count
+                    FROM  {table_name}
+                GROUP BY  {col_name}
+                ORDER BY  2 DESC;
+            """
+        else:
+            query = f"""
+                  SELECT  {col_name},
+                          {col_2_name}
+                    FROM  {table_name}
+                ORDER BY  {col_name} DESC;
+            """
+
+        self.cur.execute(query)
+        results = self.cur.fetchall()
+
+        if col_2_name is None:
+            for row in results:
+                value = row[0]
+                count = row[1]
+                dicData[value] = count
+        else:
+            for row in results:
+                dicData[row[0]] = row[1]
+
+        return dicData
