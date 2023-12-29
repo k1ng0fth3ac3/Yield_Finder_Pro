@@ -143,7 +143,6 @@ class Upload:
                 data_row = ()
                 data_row = (f'{protocol.id}',
                             f'{datetime.datetime.now().date()}',
-                            f'{protocol.name}',
                             protocol.tvl,
                             dex_volume,
                             fees,
@@ -227,7 +226,6 @@ class Upload:
                     data_row = (f'{chain}',
                                 f'{datetime.datetime.now().date()}',
                                 f'{protocol.id}',
-                                f'{protocol.name}',
                                 tvl,
                                 volume,
                                 fees

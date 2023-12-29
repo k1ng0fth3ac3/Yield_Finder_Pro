@@ -98,7 +98,9 @@ class Connection:
             'upload_count': 0,                          # Number of times we have uploaded data
             'upload_rows': 0,                           # Number of rows uploaded in total
             'upload_first_date': None,                  # First date of upload
-            'upload_last_date': None                    # Last date of upload
+            'upload_last_date': None,                   # Last date of upload
+            'total_rows': 0,                            # Total actual rows (might differ quite a bit from the uploaded rows
+            'total_size_gb': 0                          # Total table size in GigaBits
         }
 
         for row in results:
@@ -118,13 +120,40 @@ class Connection:
                     dicTableInfo['upload_last_date'] = row[1]
 
 
+        # ----- Columns
         query2 = f"""
-        SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'
+        SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}';
         """
 
         self.cur.execute(query2)
         dicTableInfo['columns'] = [row[0] for row in self.cur.fetchall()]
+        # -----/
 
+        # ----- Total rows
+        query3 = f"""
+        SELECT COUNT(id) FROM {table_name};
+        """
+
+        self.cur.execute(query3)
+        result = self.cur.fetchone()
+        if result is not None:
+            dicTableInfo['total_rows'] = result[0]
+        else:
+            dicTableInfo['total_rows'] = 0
+        # -----/
+
+        # ----- Total Table size in GigaBits
+        query4 = f"""
+            SELECT pg_total_relation_size('{table_name}')
+            """
+
+        self.cur.execute(query4)
+        result = self.cur.fetchone()
+        if result is not None:
+            dicTableInfo['total_size_gb'] = result[0] / 1000000
+        else:
+            dicTableInfo['total_size_gb'] = 0
+        # -----/
 
         return dicTableInfo
 
@@ -210,3 +239,8 @@ class Connection:
                 dicData[row[0]] = row[1]
 
         return dicData
+
+    def run_custom_query(self, query):
+
+        self.cur.execute(query)
+        self.conn.commit()

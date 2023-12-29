@@ -90,6 +90,14 @@ class Create_table:
         self.connection.create_table(table_name, dicCols)
         self.connection.add_to_action_log(table_name, self.action, 0, f'{len(dicCols)} columns')
 
+    def daily_pools_raw_selection(self):
+        table_name = 'daily_pools_raw_selection'
+
+        dicCols = self.table_info.daily_pools_raw_selection()
+
+        self.connection.create_table(table_name, dicCols)
+        self.connection.add_to_action_log(table_name, self.action, 0, f'{len(dicCols)} columns')
+
 
 class Tables_info:
 
@@ -224,5 +232,25 @@ class Tables_info:
         dicCols['pool_token_1'] = 'VARCHAR(255)'
         dicCols['pool_token_2'] = 'VARCHAR(255)'
         dicCols['pool_token_3'] = 'VARCHAR(255)'
+
+        return dicCols
+
+
+    def daily_pools_raw_selection(self):
+        dicCols = {}
+        dicCols['id'] = 'SERIAL PRIMARY KEY'
+        dicCols['symbol'] = 'VARCHAR(100)'
+        dicCols['pool_info_id'] = 'INT'
+        dicCols['project'] = 'VARCHAR(40)'
+        dicCols['chain'] = 'VARCHAR(35)'
+
+        dicCols['apy'] = 'DECIMAL(12,1)'
+        dicCols['tvl'] = 'DECIMAL(12,0)'
+        dicCols['volume'] = 'DECIMAL(12,0)'
+        dicCols['vol_tvl_rate'] = 'DECIMAL(12,3)'
+        dicCols['apy_base'] = 'DECIMAL(12,1)'
+        dicCols['apy_reward'] = 'DECIMAL(12,1)'
+        dicCols['protocol_tvl'] = 'DECIMAL(16,0)'
+        dicCols['pool_meta'] = 'VARCHAR(255)'
 
         return dicCols
