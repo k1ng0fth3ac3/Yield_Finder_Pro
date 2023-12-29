@@ -240,7 +240,35 @@ class Connection:
 
         return dicData
 
-    def run_custom_query(self, query):
+    def insert_to_table(self, to_table_name: str, to_columns: str, from_table_name: str, columns: str = '*',
+                        where_clause: str = None, group_by:str = None, order_by: str = None):
+
+        query = f"""
+            INSERT INTO {to_table_name} ({to_columns})
+            SELECT  {columns}
+            FROM  {from_table_name}
+            {f'WHERE {where_clause}' if where_clause else ''}
+            {f'GROUP BY {group_by}' if group_by else ''}
+            {f'ORDER BY {order_by}' if order_by else ''}
+             ;
+        """
 
         self.cur.execute(query)
         self.conn.commit()
+
+    def select_table_data(self, table_name: str, columns: str = '*', where_clause: str = None, group_by:str = None, order_by: str = None):
+        # if we need to have joins, just write it in the table_name
+
+        query = f"""
+            SELECT  {columns}
+            FROM  {table_name}
+            {f'WHERE {where_clause}' if where_clause else ''}
+            {f'GROUP BY {group_by}' if group_by else ''}
+            {f'ORDER BY {order_by}' if order_by else ''}
+             ;
+        """
+
+        self.cur.execute(query)
+        results = self.cur.fetchall()
+
+        return results
