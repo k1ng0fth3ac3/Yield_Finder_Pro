@@ -3,6 +3,10 @@ import pandas as pd
 
 class Analytics:
 
+    def __init__(self):
+        self.dicPools = {}
+
+
     def calc_daily_raw_pools(self, min_apy: int = 500, min_tvl: float = 20000):
 
 
@@ -38,12 +42,12 @@ class Analytics:
         order_by = f"""PH.apy DESC"""
 
 
-        connection.insert_to_table(table_name,to_columns=to_columns,from_table_name=from_table,columns=columns,
+        connection.insert_to_table_with_sql(table_name,to_columns=to_columns,from_table_name=from_table,columns=columns,
                                    where_clause=where_clause,order_by=order_by)
 
 
         dicInfo = connection.get_table_info(table_name)
-        #connection.add_to_action_log(table_name,'data_analytics',dicInfo['total_rows'],'Analytics Phase 1')
+        connection.add_to_action_log(table_name,'data_analytics',dicInfo['total_rows'],'Analytics Phase 1')
         connection.close_connection()
 
     def get_advanced_calcs(self):
@@ -54,24 +58,49 @@ class Analytics:
         pool_ids = pool_ids_dic.keys()
 
         dicInfo = connection.get_table_info('pools_history')
-        columns = dicInfo['columns']
+        columns_ph = dicInfo['columns']
 
-        dicPools = {}       # Results
 
 
         for id in pool_ids:
 
             pool_history = connection.select_table_data('pools_history',columns='*',where_clause=f'pool_info_id = {id}')
-
-            df = pd.DataFrame(pool_history, columns=columns)
-
+            df = pd.DataFrame(pool_history, columns=columns_ph)
             print(df)
 
             dicPoolData = {}
+            dicPoolData['id'] = id                                          # Info table id
+            dicPoolData['age'] = df.shape[0]                                # Age in days
+            dicPoolData['apy'] = df['apy'].iloc[-1]                         # APY
+
+            dicPoolData['apy_base'] = df['apy_base'].iloc[-1]               # APY Base
+            dicPoolData['apy_reward'] = df['apy_reward'].iloc[-1]           # APY Reward
+
+            dicPoolData['tvl'] = df['tvl'].iloc[-1]                         # TVL
+            dicPoolData['volume'] = df['volume'].iloc[-1]                   # Volume
+            dicPoolData['vol_to_tvl'] = df['vol_to_tvl'].iloc[-1]           # Volume to TVL
 
 
 
-            dicPools[id] = dicPoolData
+            if df.shape[0] > 2:
+                dicPoolData['apy_change_3d'] = (dicPoolData['apy'] - df['apy'].iloc[-3]) / dicPoolData['apy']
+            else:
+                dicPoolData['apy_change_3d'] = None
+
+            if df.shape[0] > 6:
+                dicPoolData['apy_change_7d'] = (dicPoolData['apy'] - df['apy'].iloc[-7]) / dicPoolData['apy']
+            else:
+                dicPoolData['apy_change_7d'] = None
+
+            if df.shape[0] > 13:
+                dicPoolData['apy_change_14d'] = (dicPoolData['apy'] - df['apy'].iloc[-14]) / dicPoolData['apy']
+            else:
+                dicPoolData['apy_change_14d'] = None
+
+
+        #pool = Pool(dicPoolData)            # Create Pool object
+
+            #self.dicPools[id] = pool
 
         connection.close_connection()
 
@@ -80,25 +109,29 @@ class Analytics:
 class Pool:
 
     def __init__(self):
-        self.db_info_id
-
-        self.apy: float
-        self.apy_base: float
-        self.apy_reward: float
+        self.db_info_id: float          # Info table ID
 
         self.age: int                   # Number of days
-        self.tvl: float
-        self.volume: float
-        self.vol_to_tvl: float          # Volume / tvl
+        self.apy: float                 # Total APY
+        self.apy_change_3d: float       # APY change to the one 3 days ago
+        self.apy_change_7d: float       # APY change to the one 7 days ago
+        self.apy_change_14d: float      # APY change to the one 14 days ago
+        self.apy_base: float            # Base APY
+        self.apy_reward: float          # Reward APY
 
+        self.tvl: float                 # Tvl (from database)
+        self.volume: float              # Volume (from database)
+        self.vol_to_tvl: float          # Volume / tvl (from database)
+
+        self.chain: str                 # Chain name
+        self.protocol: str              # Protocol name
         self.protocol_tvl: float        # TVL of the protocol the pool is in
 
         self.fee_rate: float            # Take from the meta (need to parse and doesn't exist for 80% of cases)
 
-        self.tvl_change_3d: float
-        self.tvl_change_7d: float
-        self.tvl_change_14d: float
-
+        self.tvl_change_3d: float       # Percentage change of tvl to the one 3 days ago
+        self.tvl_change_7d: float       # Percentage change of tvl to the one 7 days ago
+        self.tvl_change_14d: float      # Percentage change of tvl to the one 14 days ago
 
         self.asset_1: str               # Try to find out which one here is the actual token and which one is the collateral
         self.asset_2: str
