@@ -3,7 +3,7 @@ from dbTables import Tables_info
 from dbManager import Connection
 from datetime import date
 from defiLlama import Pools, Protocols,Protocol, Chains
-
+from coinGecko import Gecko
 
 
 class Upload:
@@ -491,4 +491,39 @@ class Upload:
         else:
             connection.add_to_action_log(table_name, self.action, len(data), 'No new Pools')
 
+        connection.close_connection()
+
+
+    def token_contracts(self):
+
+        # ----- Get Table info
+        table_name = 'token_contracts'
+        connection = Connection()
+        dicTableInfo = connection.get_table_info(table_name)
+        # -----/
+
+        existing_contracts = connection.get_uniq_values_from_col(table_name, 'contract')
+
+        gecko = Gecko()
+        gecko.get_token_ids()
+
+        data = []
+        for token in gecko.tokens.values():
+            for chain, contract in token.chains.items():
+                if contract not in existing_contracts:
+
+                    data_row = ()
+                    data_row = (f'{datetime.datetime.now().date()}',
+                                f'{token.symbol}',
+                                f'{token.id}',
+                                f'{chain.lower()}',
+                                f'{contract}'
+                                )
+
+                    data.append(data_row)
+        # -----/
+
+        columns = dicTableInfo['columns']
+        connection.insert_to_table(table_name, columns, data)
+        connection.add_to_action_log(table_name, self.action, len(data), 'Update')
         connection.close_connection()
