@@ -240,8 +240,8 @@ class Connection:
 
         return dicData
 
-    def insert_to_table(self, to_table_name: str, to_columns: str, from_table_name: str, columns: str = '*',
-                        where_clause: str = None, group_by:str = None, order_by: str = None):
+    def insert_to_table_with_sql(self, to_table_name: str, to_columns: str, from_table_name: str, columns: str = '*',
+                        where_clause: str = None, group_by:str = None, order_by: str = None, params: tuple = ()):
 
         query = f"""
             INSERT INTO {to_table_name} ({to_columns})
@@ -253,11 +253,13 @@ class Connection:
              ;
         """
 
-        self.cur.execute(query)
+        self.cur.execute(query, params)
         self.conn.commit()
 
-    def select_table_data(self, table_name: str, columns: str = '*', where_clause: str = None, group_by:str = None, order_by: str = None):
+    def select_table_data(self, table_name: str, columns: str = '*', where_clause: str = None, group_by:str = None,
+                          order_by: str = None, params: tuple = ()):
         # if we need to have joins, just write it in the table_name
+        # Write %s in place of all the parameters we wish to pass and then define them in the same order in the tuple
 
         query = f"""
             SELECT  {columns}
@@ -268,7 +270,7 @@ class Connection:
              ;
         """
 
-        self.cur.execute(query)
+        self.cur.execute(query, params)
         results = self.cur.fetchall()
 
         return results
