@@ -98,6 +98,14 @@ class Create_table:
         self.connection.create_table(table_name, dicCols)
         self.connection.add_to_action_log(table_name, self.action, 0, f'{len(dicCols)} columns')
 
+    def token_contracts(self):
+        table_name = 'token_contracts'
+
+        dicCols = self.table_info.token_contracts()
+
+        self.connection.create_table(table_name, dicCols)
+        self.connection.add_to_action_log(table_name, self.action, 0, f'{len(dicCols)} columns')
+
 
 class Tables_info:
 
@@ -252,5 +260,16 @@ class Tables_info:
         dicCols['apy_reward'] = 'DECIMAL(12,1)'
         dicCols['protocol_tvl'] = 'DECIMAL(16,0)'
         dicCols['pool_meta'] = 'VARCHAR(255)'
+
+        return dicCols
+
+    def token_contracts(self):
+        dicCols = {}
+        dicCols['id'] = 'SERIAL PRIMARY KEY'
+        dicCols['date_added'] = 'DATE'
+        dicCols['token'] = 'VARCHAR(100)'
+        dicCols['gecko_id'] = 'VARCHAR(100)'
+        dicCols['chain'] = 'VARCHAR(35)'
+        dicCols['contract'] = 'VARCHAR(255)'
 
         return dicCols
