@@ -35,11 +35,12 @@ class Analytics:
                         ROUND(PH.apy_reward,1) AS apy_reward,
                         PRH.tvl AS protocol_tvl,
                         PI.pool_meta"""
-        where_clause = f"""apy > %s
+        where_clause = f"""apy_base > %s
                    AND	PH.date = CURRENT_DATE
                    AND	PH.tvl > %s
                    AND	PI.symbol NOT LIKE %s
                    AND  PI.pool_token_1 IS NOT NULL
+                   AND  PH.volume IS NOT NULL
                    AND LENGTH(PI.symbol) - LENGTH(REPLACE(PI.symbol, '-', '')) = 1"""
         order_by = f"""PH.apy DESC"""
 
@@ -49,8 +50,8 @@ class Analytics:
 
 
         dicInfo = connection.get_table_info(table_name)
-        #connection.add_to_action_log(table_name,'data_analytics',dicInfo['total_rows'],'Analytics Phase 1')
-        print(f'{dicInfo["total_rows"]} rows added to table (testing - not added to action log')
+        connection.add_to_action_log(table_name,'data_analytics',dicInfo['total_rows'],'Analytics Phase 1')
+        #print(f'{dicInfo["total_rows"]} rows added to table (testing - not added to action log')
         connection.close_connection()
 
     def get_advanced_pool_data(self):
@@ -79,41 +80,47 @@ class Analytics:
             dicPoolData = {}
             dicPoolData['id'] = id                                                          # Info table id
             dicPoolData['age'] = df.shape[0]                                                # Age in days
-            dicPoolData['apy'] = df['apy'].iloc[-1]                                         # APY
 
+            #dicPoolData['apy'] = df['apy'].iloc[-1]                                         # APY
             dicPoolData['apy_base'] = df['apy_base'].iloc[-1]                               # APY Base
             dicPoolData['apy_reward'] = df['apy_reward'].iloc[-1]                           # APY Reward
 
-            dicPoolData['tvl'] = df['tvl'].iloc[-1]                                         # TVL
+            #dicPoolData['volume'] = df['volume'].iloc[-1]                                   # Volume
+            #dicPoolData['vol_to_tvl'] = dicPoolData['volume'] / dicPoolData['tvl']          # Volume to TVL
 
-            if df['volume'].iloc[-1] is not None:
-                dicPoolData['volume'] = df['volume'].iloc[-1]                               # Volume
-                dicPoolData['vol_to_tvl'] = dicPoolData['volume'] / dicPoolData['tvl']      # Volume to TVL
-            else:
-                dicPoolData['volume'] = None
-                dicPoolData['vol_to_tvl'] = None
+            dicPoolData['tvl_history'] = {}
+            dicPoolData['apy_history'] = {}
+            dicPoolData['volume_history'] = {}
+            dicPoolData['vol_to_tvl_history'] = {}
+            dicPoolData['vol_to_tvl_min_history'] = {}
+            dicPoolData['vol_to_tvl_max_history'] = {}
+            dicPoolData['vol_to_tvl_avg_history'] = {}
 
 
-            if df.shape[0] > 2:
-                dicPoolData['apy_change_3d'] = (dicPoolData['apy'] - df['apy'].iloc[-3]) / dicPoolData['apy']
-                dicPoolData['tvl_change_3d'] = (dicPoolData['tvl'] - df['tvl'].iloc[-3]) / dicPoolData['tvl']
-            else:
-                dicPoolData['apy_change_3d'] = None
-                dicPoolData['tvl_change_3d'] = None
+            vol_to_tvl_min = 9999       # Reset
+            vol_to_tvl_max = 0          # Reset
+            vol_to_tvl_sum = 0          # Reset
 
-            if df.shape[0] > 6:
-                dicPoolData['apy_change_7d'] = (dicPoolData['apy'] - df['apy'].iloc[-7]) / dicPoolData['apy']
-                dicPoolData['tvl_change_7d'] = (dicPoolData['tvl'] - df['tvl'].iloc[-7]) / dicPoolData['tvl']
-            else:
-                dicPoolData['apy_change_7d'] = None
-                dicPoolData['tvl_change_7d'] = None
 
-            if df.shape[0] > 13:
-                dicPoolData['apy_change_14d'] = (dicPoolData['apy'] - df['apy'].iloc[-14]) / dicPoolData['apy']
-                dicPoolData['tvl_change_14d'] = (dicPoolData['tvl'] - df['tvl'].iloc[-14]) / dicPoolData['tvl']
-            else:
-                dicPoolData['apy_change_14d'] = None
-                dicPoolData['tvl_change_14d'] = None
+            for index in range(len(df) - 1, -1, -1):
+                if index > 30:
+                    break
+
+                dicPoolData['tvl_history'][len(df) - index -1] = df['tvl'].iloc[index]
+                dicPoolData['volume_history'][len(df) - index -1] = df['volume'].iloc[index]
+                dicPoolData['apy_history'][len(df) - index-1] = df['apy'].iloc[index]
+                dicPoolData['vol_to_tvl_history'][len(df) - index-1] = df['volume'].iloc[index] / df['tvl'].iloc[index]
+
+                if df['volume'].iloc[index] / df['tvl'].iloc[index] < vol_to_tvl_min:
+                    dicPoolData['vol_to_tvl_min_history'][len(df) - index - 1] = df['volume'].iloc[index] / df['tvl'].iloc[index]
+                    vol_to_tvl_min = df['volume'].iloc[index] / df['tvl'].iloc[index]
+
+                if df['volume'].iloc[index] / df['tvl'].iloc[index] > vol_to_tvl_max:
+                    dicPoolData['vol_to_tvl_max_history'][len(df) - index - 1] = df['volume'].iloc[index] / df['tvl'].iloc[index]
+                    vol_to_tvl_max = df['volume'].iloc[index] / df['tvl'].iloc[index]
+
+                vol_to_tvl_sum = vol_to_tvl_sum + df['volume'].iloc[index] / df['tvl'].iloc[index]
+                dicPoolData['vol_to_tvl_avg_history'][len(df) - index - 1] = vol_to_tvl_sum / (len(df) - index)
 
 
             pool_info = connection.select_table_data('pools_info', columns='*', where_clause='id = %s', params=(id,))
@@ -186,6 +193,21 @@ class Analytics:
         connection.close_connection()
 
 
+    def filter_pools(self):
+
+        for pool in self.dicPools.values():
+
+            # AGE
+            if pool.age < 2:
+                age_score = 0
+            else:
+                age_score = pool.age / 5
+
+
+            # Vol to tvl history
+            # Get min and Max
+
+
 
 class Pool:
 
@@ -194,26 +216,22 @@ class Pool:
         self.symbol: str                # Pair symbol
 
         self.age: int                   # Number of days
-        self.apy: float                 # Total APY
-        self.apy_change_3d: float       # APY change to the one 3 days ago
-        self.apy_change_7d: float       # APY change to the one 7 days ago
-        self.apy_change_14d: float      # APY change to the one 14 days ago
         self.apy_base: float            # Base APY
         self.apy_reward: float          # Reward APY
 
-        self.tvl: float                 # Tvl (from database)
-        self.volume: float              # Volume (from database)
-        self.vol_to_tvl: float          # Volume / tvl (from database)
-
         self.chain: str                 # Chain name
         self.protocol: str              # Protocol name
-        #self.protocol_tvl: float        # TVL of the protocol the pool is in
 
         self.fee_rate: float            # Take from the meta (need to parse and doesn't exist for 80% of cases)
 
-        self.tvl_change_3d: float       # Percentage change of tvl to the one 3 days ago
-        self.tvl_change_7d: float       # Percentage change of tvl to the one 7 days ago
-        self.tvl_change_14d: float      # Percentage change of tvl to the one 14 days ago
+        self.tvl_history: dict          # TVl history (0 = today, 1 = yesterday...)
+        self.volume_history: dict       # Volume history (0 = today, 1 = yesterday...)
+        self.apy_history: dict          # APY history (0 = today, 1 = yesterday...)
+        self.vol_to_tvl_history: dict   # Volume to TVL history (0 = today, 1 = yesterday...)
+
+        self.vol_to_tvl_min_history: dict   # Minimum vol to tvl rate for each day (0 = today, 1 = yesterday...)
+        self.vol_to_tvl_max_history: dict   # Maximum vol to tvl rate for each day (0 = today, 1 = yesterday...)
+        self.vol_to_tvl_avg_history: dict   # AVG vol to tvl rate for each day (0 = today, 1 = yesterday...)
 
         self.primary_token: str         # Primary focus token
         self.base_token: str            # Pair token (ETH, AVAX, SOL, etc.)
@@ -221,7 +239,6 @@ class Pool:
         self.contract_base: str         # Contract address 2
         self.gecko_id_primary: str      # Gecko id 1
         self.gecko_id_base: str         # Gecko id 2
-
 
         self.live_price: float          # Most up to date price of the token
         self.live_tvl: float            # Most up to date tvl of the token
@@ -236,10 +253,6 @@ class Pool:
         self.symbol = dicPoolData['symbol']
         self.age = dicPoolData['age']
 
-        self.apy = dicPoolData['apy']
-        self.apy_change_3d = dicPoolData['apy_change_3d']
-        self.apy_change_7d = dicPoolData['apy_change_7d']
-        self.apy_change_14d = dicPoolData['apy_change_14d']
         self.apy_base = dicPoolData['apy_base']
         self.apy_reward = dicPoolData['apy_reward']
 
@@ -247,13 +260,18 @@ class Pool:
         self.protocol = dicPoolData['protocol']
         self.fee_rate = dicPoolData['fee_rate']
 
-        self.tvl_change_3d = dicPoolData['tvl_change_3d']
-        self.tvl_change_7d = dicPoolData['tvl_change_7d']
-        self.tvl_change_14d = dicPoolData['tvl_change_14d']
-
         self.primary_token = dicPoolData['primary']
         self.base_token = dicPoolData['base']
         self.contract_primary = dicPoolData['primary_contract']
         self.contract_base = dicPoolData['base_contract']
         self.gecko_id_primary = dicPoolData['gecko_id_primary']
         self.gecko_id_base = dicPoolData['gecko_id_base']
+
+        self.tvl_history = dicPoolData['tvl_history']
+        self.apy_history = dicPoolData['apy_history']
+        self.volume_history = dicPoolData['volume_history']
+        self.vol_to_tvl_history = dicPoolData['vol_to_tvl_history']
+
+        self.vol_to_tvl_min_history = dicPoolData['vol_to_tvl_min_history']
+        self.vol_to_tvl_max_history = dicPoolData['vol_to_tvl_max_history']
+        self.vol_to_tvl_avg_history = dicPoolData['vol_to_tvl_avg_history']
