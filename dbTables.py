@@ -271,5 +271,6 @@ class Tables_info:
         dicCols['gecko_id'] = 'VARCHAR(100)'
         dicCols['chain'] = 'VARCHAR(35)'
         dicCols['contract'] = 'VARCHAR(255)'
+        dicCols['pool_count'] = 'INT'
 
         return dicCols

@@ -4,7 +4,7 @@ from dbManager import Connection
 from datetime import date
 from defiLlama import Pools, Protocols,Protocol, Chains
 from coinGecko import Gecko
-
+import pandas as pd
 
 class Upload:
 
@@ -494,7 +494,7 @@ class Upload:
         connection.close_connection()
 
 
-    def token_contracts(self):
+    def token_contracts_gecko(self):
 
         # ----- Get Table info
         table_name = 'token_contracts'
@@ -521,6 +521,153 @@ class Upload:
                                 )
 
                     data.append(data_row)
+        # -----/
+
+        columns = dicTableInfo['columns']
+        connection.insert_to_table(table_name, columns, data)
+        connection.add_to_action_log(table_name, self.action, len(data), 'Update')
+        connection.close_connection()
+
+
+
+    def token_contracts(self):
+
+        # ----- Get Table info
+        table_name = 'token_contracts'
+        connection = Connection()
+        dicTableInfo = connection.get_table_info(table_name)
+        # -----/
+
+        #existing_contracts = connection.get_uniq_values_from_col(table_name, 'contract')
+        connection.clear_whole_table(table_name)
+
+
+        gecko = Gecko()
+        gecko.get_token_ids()
+
+        columns_clause = f"""token,
+                            chain,
+                            contract,
+                            pool_count,
+                            max_pc,
+                            MIN(SUM(pool_count)) OVER(PARTITION BY contract) AS max2_pc,	-- Second largest
+                            prospects,
+                            index
+                        """
+        from_clause = f"""
+                    (
+                SELECT	token,
+                        chain,
+                        contract,
+                        SUM(count) AS pool_count,
+                        MAX(SUM(count)) OVER(PARTITION BY contract) AS max_pc,
+                        COUNT(contract) OVER(PARTITION BY contract) AS prospects,
+                        ROW_NUMBER() OVER(PARTITION BY contract ORDER BY SUM(count) DESC) AS index
+                        
+                  FROM	(
+            
+                SELECT	unnest(string_to_array(symbol, '-')) AS token,
+                        chain,
+                        LOWER(pool_token_1) as contract,
+                        COUNT(id) AS COUNT
+                  FROM 	pools_info
+                 WHERE	pool_token_1 IS NOT NULL
+                   AND	LENGTH(pool_token_1) > 15
+                   AND	pool_token_3 IS NULL
+              GROUP BY	unnest(string_to_array(symbol, '-')),
+                        chain,
+                        pool_token_1
+             UNION ALL
+                SELECT	unnest(string_to_array(symbol, '-')) AS token,
+                        chain,
+                        LOWER(pool_token_2) AS contract,
+                        COUNT(id) AS COUNT
+                  FROM 	pools_info
+                 WHERE	pool_token_1 IS NOT NULL
+                   AND	LENGTH(pool_token_2) > 15
+                   AND	pool_token_3 IS NULL
+              GROUP BY	unnest(string_to_array(symbol, '-')),
+                        chain,
+                        pool_token_2
+                        
+              ORDER BY	4 DESC
+                    )
+              GROUP BY	token,
+                        chain,
+                        contract
+              ORDER BY	3 DESC
+                      )
+                    """
+        where_clause = f"""
+                    index < %s
+                    """
+        group_by = f"""
+                    token,
+                    chain,
+                    contract,
+                    pool_count,
+                    max_pc,
+                    index,
+                    prospects
+                    """
+        order_by = f"""
+                    pool_count DESC
+                    """
+
+        contracts_from_pools = connection.select_table_data(table_name=from_clause, columns=columns_clause
+                                            ,where_clause=where_clause,group_by=group_by,order_by=order_by,params=(3,))
+        df = pd.DataFrame(contracts_from_pools, columns=['token', 'chain','contract','pool_count','max_pc','max2_pc','prospects','index'])
+
+        dicContracts = {}                       # Contract / tuple (token, chain, pool count)
+        dicAssignedTokens_chains = {}           # Just to keep track of the assigned tokens and chains
+        dicUnassigned = {}
+
+        for index, row in df.iterrows():
+
+            contract = row['contract']
+            token = row['token']
+            chain = row['chain']
+            pool_count = row['pool_count']
+
+            if contract not in dicContracts:
+
+                if contract.lower() in gecko.contracts:
+                    gecko_contract = gecko.contracts[contract.lower()]
+                    gecko_id = gecko_contract.id
+                else:
+                    gecko_id = None
+
+
+                if row['max_pc'] != row['max2_pc'] and row['max_pc'] == row['pool_count']:
+
+                    dicContracts[contract.lower()] = (token, chain, pool_count, gecko_id)
+                    dicAssignedTokens_chains[token + '_' + chain] = contract
+
+                else:
+                    if token + '_' + chain not in dicAssignedTokens_chains:
+                        dicContracts[contract.lower()] = (token, chain, pool_count,gecko_id)
+                        dicAssignedTokens_chains[token + '_' + chain] = contract
+                    else:
+                        if gecko_id is not None:
+                            dicContracts[contract.lower()] = (gecko_contract.symbol, gecko_contract.chain, None, gecko_id)
+                            dicAssignedTokens_chains[gecko_contract.symbol + '_' + gecko_contract.chain] = contract
+                        else:
+                            if token not in ['WETH','WMATIC','USDC','USDT','SOL','WAVAX','GDAI','SDAI','WFTM','WBNB','BUSD']:
+                                #print(f'Unable to assign:  {contract} -- {token}')
+                                pass
+
+        data = []
+        for contract, c_data in dicContracts.items():
+            data_row = ()
+            data_row = (f'{datetime.datetime.now().date()}',
+                        f'{c_data[0]}',
+                        f'{c_data[3]}' if c_data[3] is not None else None,
+                        f'{c_data[1]}',
+                        f'{contract}',
+                        c_data[2]
+                        )
+
+            data.append(data_row)
         # -----/
 
         columns = dicTableInfo['columns']
