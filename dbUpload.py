@@ -538,8 +538,8 @@ class Upload:
         dicTableInfo = connection.get_table_info(table_name)
         # -----/
 
-        #existing_contracts = connection.get_uniq_values_from_col(table_name, 'contract')
-        connection.clear_whole_table(table_name)
+        existing_contracts = connection.get_uniq_values_from_col(table_name, 'contract')
+        #connection.clear_whole_table(table_name)
 
 
         gecko = Gecko()
@@ -629,48 +629,56 @@ class Upload:
             chain = row['chain']
             pool_count = row['pool_count']
 
-            if contract not in dicContracts:
+            if contract not in existing_contracts:
+                if contract not in dicContracts:
 
-                if contract.lower() in gecko.contracts:
-                    gecko_contract = gecko.contracts[contract.lower()]
-                    gecko_id = gecko_contract.id
-                else:
-                    gecko_id = None
-
-
-                if row['max_pc'] != row['max2_pc'] and row['max_pc'] == row['pool_count']:
-
-                    dicContracts[contract.lower()] = (token, chain, pool_count, gecko_id)
-                    dicAssignedTokens_chains[token + '_' + chain] = contract
-
-                else:
-                    if token + '_' + chain not in dicAssignedTokens_chains:
-                        dicContracts[contract.lower()] = (token, chain, pool_count,gecko_id)
-                        dicAssignedTokens_chains[token + '_' + chain] = contract
+                    if contract.lower() in gecko.contracts:
+                        gecko_contract = gecko.contracts[contract.lower()]
+                        gecko_id = gecko_contract.id
                     else:
-                        if gecko_id is not None:
-                            dicContracts[contract.lower()] = (gecko_contract.symbol, gecko_contract.chain, None, gecko_id)
-                            dicAssignedTokens_chains[gecko_contract.symbol + '_' + gecko_contract.chain] = contract
+                        gecko_id = None
+
+
+                    if row['max_pc'] != row['max2_pc'] and row['max_pc'] == row['pool_count']:
+
+                        dicContracts[contract.lower()] = (token, chain, pool_count, gecko_id)
+                        dicAssignedTokens_chains[token + '_' + chain] = contract
+
+                    else:
+                        if token + '_' + chain not in dicAssignedTokens_chains:
+                            dicContracts[contract.lower()] = (token, chain, pool_count,gecko_id)
+                            dicAssignedTokens_chains[token + '_' + chain] = contract
                         else:
-                            if token not in ['WETH','WMATIC','USDC','USDT','SOL','WAVAX','GDAI','SDAI','WFTM','WBNB','BUSD']:
-                                #print(f'Unable to assign:  {contract} -- {token}')
-                                pass
+                            if gecko_id is not None:
+                                dicContracts[contract.lower()] = (gecko_contract.symbol, gecko_contract.chain, None, gecko_id)
+                                dicAssignedTokens_chains[gecko_contract.symbol + '_' + gecko_contract.chain] = contract
+                            else:
+
+                                missingContract = 'E43qU77tnWDwN11o7TtaGMNpxCAqz8RZEZ7PcTCUXSim'
+                                if contract.lower() == missingContract.lower():
+                                    print(f'{token} -- {pool_count}')
+
+                                if token not in ['WETH','WMATIC','USDC','USDT','SOL','WAVAX','GDAI','SDAI','WFTM','WBNB','BUSD']:
+                                    #print(f'Unable to assign:  {contract} -- {token}')
+                                    pass
 
         data = []
-        for contract, c_data in dicContracts.items():
-            data_row = ()
-            data_row = (f'{datetime.datetime.now().date()}',
-                        f'{c_data[0]}',
-                        f'{c_data[3]}' if c_data[3] is not None else None,
-                        f'{c_data[1]}',
-                        f'{contract}',
-                        c_data[2]
-                        )
+        if len(dicContracts) > 0:
 
-            data.append(data_row)
+            for contract, c_data in dicContracts.items():
+                data_row = ()
+                data_row = (f'{datetime.datetime.now().date()}',
+                            f'{c_data[0]}',
+                            f'{c_data[3]}' if c_data[3] is not None else None,
+                            f'{c_data[1]}',
+                            f'{contract}',
+                            c_data[2]
+                            )
+
+                data.append(data_row)
         # -----/
 
-        columns = dicTableInfo['columns']
-        connection.insert_to_table(table_name, columns, data)
-        connection.add_to_action_log(table_name, self.action, len(data), 'Update')
+       #     columns = dicTableInfo['columns']
+       #     connection.insert_to_table(table_name, columns, data)
+       # connection.add_to_action_log(table_name, self.action, len(data), 'Update')
         connection.close_connection()

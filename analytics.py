@@ -38,20 +38,22 @@ class Analytics:
         where_clause = f"""apy > %s
                    AND	PH.date = CURRENT_DATE
                    AND	PH.tvl > %s
-                   AND	PI.symbol NOT LIKE '%UNKNOWN%'
+                   AND	PI.symbol NOT LIKE %s
+                   AND  PI.pool_token_1 IS NOT NULL
                    AND LENGTH(PI.symbol) - LENGTH(REPLACE(PI.symbol, '-', '')) = 1"""
         order_by = f"""PH.apy DESC"""
 
 
         connection.insert_to_table_with_sql(table_name,to_columns=to_columns,from_table_name=from_table,columns=columns,
-                                   where_clause=where_clause,order_by=order_by,params=(min_apy, min_tvl))
+                                   where_clause=where_clause,order_by=order_by,params=(min_apy, min_tvl, '%UNKNOWN%'))
 
 
         dicInfo = connection.get_table_info(table_name)
-        connection.add_to_action_log(table_name,'data_analytics',dicInfo['total_rows'],'Analytics Phase 1')
+        #connection.add_to_action_log(table_name,'data_analytics',dicInfo['total_rows'],'Analytics Phase 1')
+        print(f'{dicInfo["total_rows"]} rows added to table (testing - not added to action log')
         connection.close_connection()
 
-    def get_advanced_calcs(self):
+    def get_advanced_pool_data(self):
         table_name = 'daily_pools_raw_selection'
         connection = Connection()
 
@@ -66,6 +68,8 @@ class Analytics:
         columns_tc = dicInfo['columns']
 
         percentage_pattern = r'(\d+(\.\d+)?)%'  # Regular expression for matching percentage values
+
+        pd.set_option('display.max_columns', 15)
 
         for id in pool_ids:
 
@@ -106,21 +110,21 @@ class Analytics:
 
             if df.shape[0] > 13:
                 dicPoolData['apy_change_14d'] = (dicPoolData['apy'] - df['apy'].iloc[-14]) / dicPoolData['apy']
-                dicPoolData['tvl_change_7d'] = (dicPoolData['tvl'] - df['tvl'].iloc[-14]) / dicPoolData['tvl']
+                dicPoolData['tvl_change_14d'] = (dicPoolData['tvl'] - df['tvl'].iloc[-14]) / dicPoolData['tvl']
             else:
                 dicPoolData['apy_change_14d'] = None
                 dicPoolData['tvl_change_14d'] = None
 
 
-            pool_info = connection.select_table_data('pools_info', columns='*', where_clause=f'id = {id}')
+            pool_info = connection.select_table_data('pools_info', columns='*', where_clause='id = %s', params=(id,))
             df = pd.DataFrame(pool_info, columns=columns_pi)
 
             dicPoolData['symbol'] = df['symbol'].iloc[0]
             dicPoolData['chain'] = df['chain'].iloc[0]
             dicPoolData['protocol'] = df['project'].iloc[0]
 
-            dicPoolData['contract_1'] = df['pool_token_1'].iloc[0]
-            dicPoolData['contract_2'] = df['pool_token_2'].iloc[0]
+            dicPoolData['contract_1'] = df['pool_token_1'].iloc[0].lower()
+            dicPoolData['contract_2'] = df['pool_token_2'].iloc[0].lower()
 
 
             if df['pool_meta'].iloc[0] is not None:
@@ -134,10 +138,12 @@ class Analytics:
 
             token_1 = connection.select_table_data('token_contracts', columns='*', where_clause=f'contract = %s',
                                                    params=(dicPoolData['contract_1'],))
+
             df = pd.DataFrame(token_1, columns=columns_tc)
             if df.shape[0] > 0:
                 dicPoolData['token_1'] = df['token'].iloc[0]
                 dicPoolData['gecko_id_1'] = df['gecko_id'].iloc[0]
+                token_1_index = df['id'].iloc[0]        # Check this index against the token_2 index. Lower = Primary token
             else:
                 dicPoolData['token_1'] = None
                 dicPoolData['gecko_id_1'] = None
@@ -149,9 +155,28 @@ class Analytics:
             if df.shape[0] > 0:
                 dicPoolData['token_2'] = df['token'].iloc[0]
                 dicPoolData['gecko_id_2'] = df['gecko_id'].iloc[0]
+                token_2_index = df['id'].iloc[0]  # Check this index against the token_1 index. Lower = Primary token
             else:
                 dicPoolData['token_2'] = None
                 dicPoolData['gecko_id_2'] = None
+
+
+            # Get the Primary vs base token
+            # The Base tokens (ETH, AVAX, SOL, etc) are high up as a token index in token_contracts table
+            if token_1_index > token_2_index:
+                dicPoolData['primary'] = dicPoolData['token_1']
+                dicPoolData['base'] = dicPoolData['token_2']
+                dicPoolData['primary_contract'] = dicPoolData['contract_1']
+                dicPoolData['base_contract'] = dicPoolData['contract_2']
+                dicPoolData['gecko_id_primary'] = dicPoolData['gecko_id_1']
+                dicPoolData['gecko_id_base'] = dicPoolData['gecko_id_2']
+            else:
+                dicPoolData['primary'] = dicPoolData['token_2']
+                dicPoolData['base'] = dicPoolData['token_1']
+                dicPoolData['primary_contract'] = dicPoolData['contract_2']
+                dicPoolData['base_contract'] = dicPoolData['contract_1']
+                dicPoolData['gecko_id_primary'] = dicPoolData['gecko_id_2']
+                dicPoolData['gecko_id_base'] = dicPoolData['gecko_id_1']
 
 
             pool = Pool(dicPoolData)            # Create Pool object
@@ -190,12 +215,12 @@ class Pool:
         self.tvl_change_7d: float       # Percentage change of tvl to the one 7 days ago
         self.tvl_change_14d: float      # Percentage change of tvl to the one 14 days ago
 
-        self.token_1: str               # Try to find out which one here is the actual token and which one is the collateral
-        self.token_2: str               # Pair token
-        self.contract_1: str            # Contract address 1
-        self.contract_2: str            # Contract address 2
-        self.gecko_id_1: str            # Gecko id 1
-        self.gecko_id_2: str            # Gecko id 2
+        self.primary_token: str         # Primary focus token
+        self.base_token: str            # Pair token (ETH, AVAX, SOL, etc.)
+        self.contract_primary: str      # Contract address 1
+        self.contract_base: str         # Contract address 2
+        self.gecko_id_primary: str      # Gecko id 1
+        self.gecko_id_base: str         # Gecko id 2
 
 
         self.live_price: float          # Most up to date price of the token
@@ -203,6 +228,8 @@ class Pool:
         self.live_volume: float         # Most up to date volume of the token
         self.live_vol_to_tvl: float     # Most up to date volume to tvl ratio
 
+
+        self.parse(dicPoolData)
 
     def parse(self,dicPoolData):
         self.db_info_id = dicPoolData['id']
@@ -217,16 +244,16 @@ class Pool:
         self.apy_reward = dicPoolData['apy_reward']
 
         self.chain = dicPoolData['chain']
-        self.chain = dicPoolData['protocol']
+        self.protocol = dicPoolData['protocol']
         self.fee_rate = dicPoolData['fee_rate']
 
         self.tvl_change_3d = dicPoolData['tvl_change_3d']
         self.tvl_change_7d = dicPoolData['tvl_change_7d']
         self.tvl_change_14d = dicPoolData['tvl_change_14d']
 
-        self.token_1 = dicPoolData['token_1']
-        self.token_2 = dicPoolData['token_2']
-        self.contract_1 = dicPoolData['contract_1']
-        self.contract_2 = dicPoolData['contract_2']
-        self.gecko_id_1 = dicPoolData['gecko_id_1']
-        self.gecko_id_2 = dicPoolData['gecko_id_2']
+        self.primary_token = dicPoolData['primary']
+        self.base_token = dicPoolData['base']
+        self.contract_primary = dicPoolData['primary_contract']
+        self.contract_base = dicPoolData['base_contract']
+        self.gecko_id_primary = dicPoolData['gecko_id_primary']
+        self.gecko_id_base = dicPoolData['gecko_id_base']
