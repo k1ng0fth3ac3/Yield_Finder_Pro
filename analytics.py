@@ -107,20 +107,32 @@ class Analytics:
                     break
 
                 dicPoolData['tvl_history'][len(df) - index -1] = df['tvl'].iloc[index]
-                dicPoolData['volume_history'][len(df) - index -1] = df['volume'].iloc[index]
                 dicPoolData['apy_history'][len(df) - index-1] = df['apy'].iloc[index]
-                dicPoolData['vol_to_tvl_history'][len(df) - index-1] = df['volume'].iloc[index] / df['tvl'].iloc[index]
 
-                if df['volume'].iloc[index] / df['tvl'].iloc[index] < vol_to_tvl_min:
-                    dicPoolData['vol_to_tvl_min_history'][len(df) - index - 1] = df['volume'].iloc[index] / df['tvl'].iloc[index]
-                    vol_to_tvl_min = df['volume'].iloc[index] / df['tvl'].iloc[index]
+                if df['volume'].iloc[index] is not None:
+                    dicPoolData['volume_history'][len(df) - index - 1] = df['volume'].iloc[index]
+                    dicPoolData['vol_to_tvl_history'][len(df) - index-1] = df['volume'].iloc[index] / df['tvl'].iloc[index]
 
-                if df['volume'].iloc[index] / df['tvl'].iloc[index] > vol_to_tvl_max:
-                    dicPoolData['vol_to_tvl_max_history'][len(df) - index - 1] = df['volume'].iloc[index] / df['tvl'].iloc[index]
-                    vol_to_tvl_max = df['volume'].iloc[index] / df['tvl'].iloc[index]
+                    if df['volume'].iloc[index] / df['tvl'].iloc[index] < vol_to_tvl_min:
+                        dicPoolData['vol_to_tvl_min_history'][len(df) - index - 1] = df['volume'].iloc[index] / df['tvl'].iloc[index]
+                        vol_to_tvl_min = df['volume'].iloc[index] / df['tvl'].iloc[index]
+                    else:
+                        dicPoolData['vol_to_tvl_min_history'][len(df) - index - 1] = vol_to_tvl_min
 
-                vol_to_tvl_sum = vol_to_tvl_sum + df['volume'].iloc[index] / df['tvl'].iloc[index]
-                dicPoolData['vol_to_tvl_avg_history'][len(df) - index - 1] = vol_to_tvl_sum / (len(df) - index)
+                    if df['volume'].iloc[index] / df['tvl'].iloc[index] > vol_to_tvl_max:
+                        dicPoolData['vol_to_tvl_max_history'][len(df) - index - 1] = df['volume'].iloc[index] / df['tvl'].iloc[index]
+                        vol_to_tvl_max = df['volume'].iloc[index] / df['tvl'].iloc[index]
+                    else:
+                        dicPoolData['vol_to_tvl_max_history'][len(df) - index - 1] = vol_to_tvl_max
+
+                    vol_to_tvl_sum = vol_to_tvl_sum + df['volume'].iloc[index] / df['tvl'].iloc[index]
+                    dicPoolData['vol_to_tvl_avg_history'][len(df) - index - 1] = vol_to_tvl_sum / (len(df) - index)
+                else:
+                    dicPoolData['volume_history'][len(df) - index - 1] = None
+                    dicPoolData['vol_to_tvl_history'][len(df) - index - 1] = None
+                    dicPoolData['vol_to_tvl_min_history'][len(df) - index - 1] = None
+                    dicPoolData['vol_to_tvl_max_history'][len(df) - index - 1] = None
+                    dicPoolData['vol_to_tvl_avg_history'][len(df) - index - 1] = None
 
 
             pool_info = connection.select_table_data('pools_info', columns='*', where_clause='id = %s', params=(id,))
@@ -193,20 +205,87 @@ class Analytics:
         connection.close_connection()
 
 
-    def filter_pools(self):
+    def rank_pools(self):
+
+        dicScoreWeights = {}
+        dicScoreWeights['daysAboveOne'] = 1
+        dicScoreWeights['tvl_avg_3d'] = 0.5
+        dicScoreWeights['tvl_avg_7d'] = 0.25
+        dicScoreWeights['vol_to_tvl'] = 0.25
+        dicScoreWeights['data_error_rate'] = -5
+
+        dicScoreWeights['tvl_max'] = 1000000
+        dicScoreWeights['tvl_max_points'] = 50
+        dicScoreWeights['tvl_point_multiplier'] = 10
+
 
         for pool in self.dicPools.values():
 
-            # AGE
-            if pool.age < 2:
-                age_score = 0
+            prevRate = 0        # Reset
+            daysAboveOne = 0    # Reset
+            dataErrors = 0      # Reset (number of days when the data was exaclty that of the previous day)
+            for rate in pool.vol_to_tvl_history.values():
+
+                if rate == prevRate:
+                    dataErrors +=1
+
+                # Days above 1
+                if rate > 1:
+                    daysAboveOne +=1
+
+                prevRate = rate
+
+
+            if len(pool.vol_to_tvl_history) > 0:
+                pool.vol_to_tvl_above_one_days = daysAboveOne
+                pool.score = daysAboveOne * dicScoreWeights['daysAboveOne']
+
+                pool.vol_to_tvl_above_one_rate = daysAboveOne / len(pool.vol_to_tvl_history)          #
+                pool.score = pool.score + (daysAboveOne / len(pool.vol_to_tvl_history)) * 5
+
+
+                if len(pool.vol_to_tvl_avg_history) > 2:
+                    pool.vol_to_tvl_avg_3d = pool.vol_to_tvl_avg_history[2]
+                    pool.score = pool.score + float(pool.vol_to_tvl_avg_history[2]) * dicScoreWeights['tvl_avg_3d']
+                else:
+                    pool.vol_to_tvl_avg_3d = None
+
+                if len(pool.vol_to_tvl_avg_history) > 6:
+                    pool.vol_to_tvl_avg_7d = pool.vol_to_tvl_avg_history[6]
+                    pool.score = pool.score + float(pool.vol_to_tvl_avg_history[6]) * dicScoreWeights['tvl_avg_7d']
+                else:
+                    pool.vol_to_tvl_avg_7d = None
+
             else:
-                age_score = pool.age / 5
+                pool.vol_to_tvl_above_one_days = None
+                pool.vol_to_tvl_above_one_rate = None
+                pool.vol_to_tvl_avg_3d = None
+                pool.vol_to_tvl_avg_7d = None
+                daysAboveOneRate = None
+                pool.score = 0
 
 
-            # Vol to tvl history
-            # Get min and Max
 
+            pool.score = pool.score + (dataErrors / pool.age) * dicScoreWeights['data_error_rate']
+
+            if len(pool.vol_to_tvl_history) > 0:
+                pool.score = pool.score + float(pool.vol_to_tvl_history[0]) * dicScoreWeights['vol_to_tvl']
+
+
+                if float(pool.tvl_history[0]) >= dicScoreWeights['tvl_max']:
+                    pool.score = pool.score + dicScoreWeights['tvl_max_points']
+                else:
+                    pool.score = pool.score + float(pool.tvl_history[0]) / 200000 * dicScoreWeights['tvl_point_multiplier']
+
+
+
+        dicSorted_pools = sorted(self.dicPools.values(), key=lambda x: x.score, reverse=True)
+
+        self.dicPools = {}  # Reset the dictionary
+
+        for rank, pool in enumerate(dicSorted_pools,start=1):
+            pool.rank = rank
+            self.dicPools[pool.db_info_id] = pool
 
 
 class Pool:
@@ -244,6 +323,16 @@ class Pool:
         self.live_tvl: float            # Most up to date tvl of the token
         self.live_volume: float         # Most up to date volume of the token
         self.live_vol_to_tvl: float     # Most up to date volume to tvl ratio
+
+
+        self.vol_to_tvl_above_one_days: float       # Days above 1
+        self.vol_to_tvl_above_one_rate: float       # Rate of days above 1 versus total days
+        self.vol_to_tvl_avg_3d: float               # Average rate from past 3 days
+        self.vol_to_tvl_avg_7d: float               # Average rate from past 7 days
+
+
+        self.score: float                           # Total score for the pool
+        self.rank: int                              # Rank based on the score
 
 
         self.parse(dicPoolData)
