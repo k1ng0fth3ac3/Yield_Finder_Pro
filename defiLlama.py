@@ -638,3 +638,6 @@ class Chain:
         self.token_symbol = data.get('tokenSymbol')
         self.chain_id = data.get('chainId')
         self.tvl = data.get('tvl',0)
+
+
+

@@ -1,12 +1,14 @@
 from dbManager import Connection
 import pandas as pd
 import re
+from dexScreener import Contracts, Pair
+
 
 class Analytics:
 
     def __init__(self):
         self.dicPools = {}
-
+        self.contracts = Contracts()
 
     def calc_daily_raw_pools(self, min_apy: int = 500, min_tvl: float = 20000):
 
@@ -183,19 +185,19 @@ class Analytics:
             # Get the Primary vs base token
             # The Base tokens (ETH, AVAX, SOL, etc) are high up as a token index in token_contracts table
             if token_1_index > token_2_index:
-                dicPoolData['primary'] = dicPoolData['token_1']
-                dicPoolData['base'] = dicPoolData['token_2']
-                dicPoolData['primary_contract'] = dicPoolData['contract_1']
-                dicPoolData['base_contract'] = dicPoolData['contract_2']
-                dicPoolData['gecko_id_primary'] = dicPoolData['gecko_id_1']
-                dicPoolData['gecko_id_base'] = dicPoolData['gecko_id_2']
-            else:
-                dicPoolData['primary'] = dicPoolData['token_2']
                 dicPoolData['base'] = dicPoolData['token_1']
-                dicPoolData['primary_contract'] = dicPoolData['contract_2']
+                dicPoolData['quote'] = dicPoolData['token_2']
                 dicPoolData['base_contract'] = dicPoolData['contract_1']
-                dicPoolData['gecko_id_primary'] = dicPoolData['gecko_id_2']
+                dicPoolData['quote_contract'] = dicPoolData['contract_2']
                 dicPoolData['gecko_id_base'] = dicPoolData['gecko_id_1']
+                dicPoolData['gecko_id_quote'] = dicPoolData['gecko_id_2']
+            else:
+                dicPoolData['base'] = dicPoolData['token_2']
+                dicPoolData['quote'] = dicPoolData['token_1']
+                dicPoolData['base_contract'] = dicPoolData['contract_2']
+                dicPoolData['quote_contract'] = dicPoolData['contract_1']
+                dicPoolData['gecko_id_base'] = dicPoolData['gecko_id_2']
+                dicPoolData['gecko_id_quote'] = dicPoolData['gecko_id_1']
 
 
             pool = Pool(dicPoolData)            # Create Pool object
@@ -288,6 +290,47 @@ class Analytics:
             self.dicPools[pool.db_info_id] = pool
 
 
+    def get_pair_info(self, top_N_pools: int = 10, max_tvl_delta: float = 0.3):
+
+        contract_list = []
+        dicQuoteTokens = {}
+
+        for index, pool in enumerate(self.dicPools.values(), start=1):
+            if index > top_N_pools:
+                break
+
+            contract_list.append(pool.contract_base)
+            dicQuoteTokens[pool.contract_quote] = pool.quote_token
+
+
+        self.contracts.get_pairs(coin_address_list=contract_list, dicQuoteTokens=dicQuoteTokens)
+
+        for index, pool in enumerate(self.dicPools.values(), start=1):
+
+            if index > top_N_pools:
+                break
+                print(f'Broke on {pool.contract_base}')
+
+            if pool.contract_base in self.contracts.list:
+                pairs = self.contracts.list[pool.contract_base]
+
+                min_delta_tvl = 1
+
+                # Check for the closest match (TVL the most reliable indicator)
+                for contract, pair in pairs.items():
+                    if abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0])) < min_delta_tvl:
+                        min_delta_tvl = abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0]))
+                        closest_contract = contract     # Best one so far
+
+
+                if min_delta_tvl < max_tvl_delta:
+                    pool.pair_contract = self.contracts.list[pool.contract_base][closest_contract]
+                else:
+                    pool.pair_contract = None
+            else:
+                pool.pair_contract = None
+
+
 class Pool:
 
     def __init__(self, dicPoolData):
@@ -312,12 +355,12 @@ class Pool:
         self.vol_to_tvl_max_history: dict   # Maximum vol to tvl rate for each day (0 = today, 1 = yesterday...)
         self.vol_to_tvl_avg_history: dict   # AVG vol to tvl rate for each day (0 = today, 1 = yesterday...)
 
-        self.primary_token: str         # Primary focus token
-        self.base_token: str            # Pair token (ETH, AVAX, SOL, etc.)
-        self.contract_primary: str      # Contract address 1
-        self.contract_base: str         # Contract address 2
-        self.gecko_id_primary: str      # Gecko id 1
-        self.gecko_id_base: str         # Gecko id 2
+        self.base_token: str                # Primary focus token
+        self.quote_token: str               # Pair token (ETH, AVAX, SOL, etc.)
+        self.contract_base: str             # Contract address 1
+        self.contract_quote: str            # Contract address 2
+        self.gecko_id_base: str             # Gecko id 1
+        self.gecko_id_quote: str            # Gecko id 2
 
         self.live_price: float          # Most up to date price of the token
         self.live_tvl: float            # Most up to date tvl of the token
@@ -334,6 +377,8 @@ class Pool:
         self.score: float                           # Total score for the pool
         self.rank: int                              # Rank based on the score
 
+        self.pair_contract: Pair                    # Pair object (retrieved from DexTools API)
+
 
         self.parse(dicPoolData)
 
@@ -349,12 +394,12 @@ class Pool:
         self.protocol = dicPoolData['protocol']
         self.fee_rate = dicPoolData['fee_rate']
 
-        self.primary_token = dicPoolData['primary']
         self.base_token = dicPoolData['base']
-        self.contract_primary = dicPoolData['primary_contract']
+        self.quote_token = dicPoolData['quote']
         self.contract_base = dicPoolData['base_contract']
-        self.gecko_id_primary = dicPoolData['gecko_id_primary']
+        self.contract_quote = dicPoolData['quote_contract']
         self.gecko_id_base = dicPoolData['gecko_id_base']
+        self.gecko_id_quote = dicPoolData['gecko_id_quote']
 
         self.tvl_history = dicPoolData['tvl_history']
         self.apy_history = dicPoolData['apy_history']

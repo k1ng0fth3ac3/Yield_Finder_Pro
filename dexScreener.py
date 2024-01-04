@@ -6,8 +6,7 @@ class Contracts:
     def __init__(self):
         self.list = {}                 # Key = token Contract / Value: Dict: Key = pair Contract, value = Pair obj
 
-
-    def get_pairs(self, coin_address_list: list):
+    def get_pairs(self, coin_address_list: list, dicQuoteTokens: dict = None, ignore_liq_below: float = 5000, ignore_vol_below: float = 1000):
         base_url = 'https://api.dexscreener.com/latest/dex/tokens/'
         chunk_size = 30  # Maximum items per API call
 
@@ -24,11 +23,13 @@ class Contracts:
                 token_contract = pair_data['baseToken']['address'].lower()
                 pair_contract = pair_data['pairAddress'].lower()
 
-                if token_contract not in self.list:
-                    self.list[token_contract] = {}
+                if dicQuoteTokens is None or pair_data['quoteToken']['address'].lower() in dicQuoteTokens:
+                    if pair_data['liquidity']['usd'] > ignore_liq_below and pair_data['volume']['h24'] > ignore_vol_below:
+                        if token_contract not in self.list:
+                            self.list[token_contract] = {}
 
-                pair = Pair(pair_data)
-                self.list[token_contract][pair_contract] = pair
+                        pair = Pair(pair_data)
+                        self.list[token_contract][pair_contract] = pair
 
 class Pair:
 
@@ -50,3 +51,6 @@ class Pair:
         self.fdv: float = data['fdv']
         self.createdAt: float = data['pairCreatedAt'] / 1000    # Convert to seconds
         self.age_in_days: int = (datetime.utcnow() - datetime.utcfromtimestamp(self.createdAt)).days
+
+
+        self.vol_to_tvl = self.volumes['h24'] / self.liquidity_usd
