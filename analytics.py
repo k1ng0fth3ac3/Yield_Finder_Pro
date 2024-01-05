@@ -200,8 +200,10 @@ class Analytics:
                 dicPoolData['gecko_id_quote'] = dicPoolData['gecko_id_1']
 
 
-            pool = Pool(dicPoolData)            # Create Pool object
-            self.dicPools[id] = pool            # Add to collection
+
+            if not (dicPoolData['token_1'] is None or dicPoolData['token_2'] is None):
+                pool = Pool(dicPoolData)            # Create Pool object
+                self.dicPools[id] = pool            # Add to collection
 
 
         connection.close_connection()
@@ -228,14 +230,15 @@ class Analytics:
             dataErrors = 0      # Reset (number of days when the data was exaclty that of the previous day)
             for rate in pool.vol_to_tvl_history.values():
 
-                if rate == prevRate:
-                    dataErrors +=1
+                if rate is not None:
+                    if rate == prevRate:
+                        dataErrors +=1
 
-                # Days above 1
-                if rate > 1:
-                    daysAboveOne +=1
+                    # Days above 1
+                    if rate > 1:
+                        daysAboveOne +=1
 
-                prevRate = rate
+                    prevRate = rate
 
 
             if len(pool.vol_to_tvl_history) > 0:
@@ -329,6 +332,10 @@ class Analytics:
                     pool.pair_contract = None
             else:
                 pool.pair_contract = None
+
+
+    def get_token_price_history(self):
+        pass
 
 
 class Pool:

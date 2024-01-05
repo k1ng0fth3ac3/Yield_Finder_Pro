@@ -33,24 +33,27 @@ class Contracts:
 
 class Pair:
 
-    def __init__(self,data):
-        self.chain: str = data['chainId']
-        self.dexId: str = data['dexId']
-        self.pairAddress: str = data['pairAddress'].lower()
-        self.baseToken: dict = data['baseToken']                # Address, Name, Symbol
-        self.quoteToken: dict = data['quoteToken']              # Address, Name, Symbol
+    def __init__(self, data):
+        self.chain = data.get('chainId')
+        self.dexId = data.get('dexId')
+        self.pairAddress = data.get('pairAddress', '').lower()
+        self.baseToken = data.get('baseToken', {})                      # Address, Name, Symbol
+        self.quoteToken = data.get('quoteToken', {})                    # Address, Name, Symbol
 
-        self.priceNative: float = data['priceNative']
-        self.priceUsd: float = data['priceUsd']
+        self.priceNative = data.get('priceNative', 0.0)
+        self.priceUsd = data.get('priceUsd', 0.0)
 
-        self.tx_counts: dict = data['txns']                     # m5,h1,h6,h24 / buy,sell
-        self.volumes: dict = data['volume']                     # m5,h1,h6,h24
-        self.price_change: dict = data['priceChange']           # m5,h1,h6,h24
+        self.tx_counts = data.get('txns', {})                           # m5,h1,h6,h24 / buy,sell
+        self.volumes = data.get('volume', {})                           # m5,h1,h6,h24
+        self.price_change = data.get('priceChange', {})                 # m5,h1,h6,h24
 
-        self.liquidity_usd: float = data['liquidity']['usd']
-        self.fdv: float = data['fdv']
-        self.createdAt: float = data['pairCreatedAt'] / 1000    # Convert to seconds
-        self.age_in_days: int = (datetime.utcnow() - datetime.utcfromtimestamp(self.createdAt)).days
+        liquidity_data = data.get('liquidity', {})
+        self.liquidity_usd = liquidity_data.get('usd', 0.0)
+        self.fdv = data.get('fdv', 0.0)
+        self.createdAt = data.get('pairCreatedAt', 0.0) / 1000          # Convert to seconds
 
+        current_time_utc = datetime.utcnow()
+        created_time_utc = datetime.utcfromtimestamp(self.createdAt)
+        self.age_in_days = (current_time_utc - created_time_utc).days
 
-        self.vol_to_tvl = self.volumes['h24'] / self.liquidity_usd
+        self.vol_to_tvl = self.volumes.get('h24', 0.0) / self.liquidity_usd
