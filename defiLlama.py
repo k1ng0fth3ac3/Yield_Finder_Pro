@@ -641,3 +641,43 @@ class Chain:
 
 
 
+class Price:
+    url = 'https://coins.llama.fi/chart/'
+    def __init__(self):
+        self.history = {}            # Key: coin, Value: dic of prices (UNIX / price)
+
+    def get_history_by_coinGecko(self, id_list: list, span: int = 10, period:str = '1d', searchWidth: int = 600):
+
+        for i, coin_id in enumerate(id_list,start=1):
+            if i == 1:
+                id_list_string = f'coingecko:{coin_id}'
+            else:
+                id_list_string = f'{id_list_string},coingecko:{coin_id}'
+
+
+        start_unix = int((datetime.utcnow() - timedelta(days=span)).timestamp())
+
+        print(f'{self.url}{id_list_string}?start={start_unix}&span?{span}&period={period}&searchWidth={searchWidth}')
+
+        response = requests.get(f'{self.url}{id_list_string}?start={start_unix}&span={span}&period={period}&searchWidth={searchWidth}')
+        if response.status_code == 200:
+            data = response.json()
+
+            for coin, coin_data in data['coins'].items():
+                gecko_id = coin.split(':')[1]
+
+                if gecko_id not in self.history:
+                    self.history[gecko_id] = {}
+
+                prices = coin_data['prices']
+
+                for i, price_data in enumerate(prices, start=1):
+                    index = span - i
+                    unix = price_data['timestamp']
+                    price = price_data['price']
+                    self.history[gecko_id][index] = price
+
+
+        else:
+            print("Could not access the API point for coin prices, sucks!")
+            return
