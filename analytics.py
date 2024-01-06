@@ -2,6 +2,7 @@ from dbManager import Connection
 import pandas as pd
 import re
 from dexScreener import Contracts, Pair
+from defiLlama import Price
 
 
 class Analytics:
@@ -334,8 +335,26 @@ class Analytics:
                 pool.pair_contract = None
 
 
-    def get_token_price_history(self):
-        pass
+    def get_token_price_history(self,top_N_pools: int = 10):
+
+        coin_id_list = []
+        for pool in self.dicPools.values():
+
+            if pool.gecko_id_base is not None:
+                if pool.gecko_id_base not in coin_id_list:
+                    coin_id_list.append(pool.gecko_id_base)
+
+
+        price = Price()
+        price.get_history_by_coinGecko(coin_id_list)
+
+        tmp_dic = {}
+
+        for pool in self.dicPools.values():
+            if pool.gecko_id_base in price.history:
+                pool.price_history = price.history[pool.gecko_id_base]
+            else:
+                pool.price_history = None
 
 
 class Pool:
@@ -385,7 +404,7 @@ class Pool:
         self.rank: int                              # Rank based on the score
 
         self.pair_contract: Pair                    # Pair object (retrieved from DexTools API)
-
+        self.price_history: dict                    # Key: distance in days from today, value: Price
 
         self.parse(dicPoolData)
 

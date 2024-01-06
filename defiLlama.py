@@ -657,8 +657,7 @@ class Price:
 
         start_unix = int((datetime.utcnow() - timedelta(days=span)).timestamp())
 
-        print(f'{self.url}{id_list_string}?start={start_unix}&span?{span}&period={period}&searchWidth={searchWidth}')
-
+        #print(f'{self.url}{id_list_string}?start={start_unix}&span?{span}&period={period}&searchWidth={searchWidth}')
         response = requests.get(f'{self.url}{id_list_string}?start={start_unix}&span={span}&period={period}&searchWidth={searchWidth}')
         if response.status_code == 200:
             data = response.json()
