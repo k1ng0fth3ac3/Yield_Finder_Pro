@@ -359,14 +359,7 @@ class Analytics:
                 pool.price_history = None
 
 
-
-    def get_price_analytics(self):
-
-        for pool in self.dicPools.values():
-            if pool.price_history is not None:
-                self.calc_price_analytics(pool)
-
-    def calc_price_analytics(self, pool: Pool, dayRange_1: int = 14, dayRange_2:int = 7):
+    def calc_price_analytics(self, dayRange_1: int = 14, dayRange_2:int = 7):
 
         # Trend (up vs down)
         # Trend strength (how much we moved)
@@ -374,108 +367,162 @@ class Analytics:
         # Standard deviation
         # Volatility
 
-        pool.price_analytics = {}
-        price_list = pool.price_history.values()
-        price_list.reverse()
 
-        # ----------------------------------------
-        if len(pool.price_analytics) > dayRange_1 -1:
-            pool.price_analytics[f'change_{dayRange_1}d'] = (pool.price_history[0] - \
-                                    pool.price_history[dayRange_1-1]) / pool.price_history[0]       # Change %
-            pool.price_analytics[f'stdev_{dayRange_1}d'] = np.std(price_list[:dayRange_1])              # Stdev
-            pool.price_analytics[f'volatility_{dayRange_1}d'] = np.std(price_list[:dayRange_1]) \
-                                                                * np.sqrt(dayRange_1)                   # Volatility
+        for pool in self.dicPools.values():
+            pool.price_analytics = {}
+
+            if pool.price_history is not None:
+
+                price_list = list(pool.price_history.values())
+                price_list.reverse()
+
+                # ----------------------------------------
+                if len(pool.price_history) >= dayRange_1:
+                    pool.price_analytics[f'change_{dayRange_1}d'] = (pool.price_history[0] - \
+                                            pool.price_history[dayRange_1-1]) / pool.price_history[dayRange_1 - 1]      # Change %
+                    pool.price_analytics[f'stdev_{dayRange_1}d'] = np.std(price_list[:dayRange_1])                      # Stdev
+                    pool.price_analytics[f'volatility_{dayRange_1}d'] = np.std(price_list[:dayRange_1]) \
+                                                                        * np.sqrt(dayRange_1)                           # Volatility
 
 
-            positive_changes = sum(1 for i in range(len(price_list[:dayRange_1]) - 1) if price_list[i] > price_list[i + 1])
-            negative_changes = sum(1 for i in range(len(price_list[:dayRange_1]) - 1) if price_list[i] < price_list[i + 1])
+                    positive_changes = sum(1 for i in range(len(price_list[:dayRange_1]) - 1) if price_list[i] > price_list[i + 1])
+                    negative_changes = sum(1 for i in range(len(price_list[:dayRange_1]) - 1) if price_list[i] < price_list[i + 1])
 
-            if pool.price_analytics[f'change_{dayRange_1}d'] > 0.05:                                    # Trend
-                pool.price_analytics[f'trend_{dayRange_1}d'] = 'up'
-                pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = positive_changes / dayRange_1 # Trend confidence
-            elif pool.price_analytics[f'change_{dayRange_1}d'] < -0.05:
-                pool.price_analytics[f'trend_{dayRange_1}d'] = 'down'
-                pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = negative_changes / dayRange_1  # Trend confidence
+                    if pool.price_analytics[f'change_{dayRange_1}d'] > 0.05:                                            # Trend
+                        pool.price_analytics[f'trend_{dayRange_1}d'] = 'up'
+                        pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = positive_changes / dayRange_1         # Trend confidence
+                    elif pool.price_analytics[f'change_{dayRange_1}d'] < -0.05:
+                        pool.price_analytics[f'trend_{dayRange_1}d'] = 'down'
+                        pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = negative_changes / dayRange_1         # Trend confidence
+                    else:
+                        pool.price_analytics[f'trend_{dayRange_1}d'] = 'sideways'
+                        pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = (positive_changes - negative_changes)\
+                                                                                  / dayRange_1                          # Trend confidence
+
+                else:
+                    pool.price_analytics[f'change_{dayRange_1}d'] = None
+                    pool.price_analytics[f'stdev_{dayRange_1}d'] = None
+                    pool.price_analytics[f'volatility_{dayRange_1}d'] = None
+                    pool.price_analytics[f'trend_{dayRange_1}d'] = None
+                    pool.price_analytics[f'trend_confidence_{dayRange_1}d'] = None
+
+                if len(pool.price_history) >= dayRange_2:
+                    pool.price_analytics[f'change_{dayRange_2}d'] = (pool.price_history[0] - \
+                                            pool.price_history[dayRange_2-1]) / pool.price_history[dayRange_2-1]        # Change %
+                    pool.price_analytics[f'stdev_{dayRange_2}d'] = np.std(price_list[:dayRange_2])                      # Stdev
+                    pool.price_analytics[f'volatility_{dayRange_2}d'] = np.std(price_list[:dayRange_2]) \
+                                                                        * np.sqrt(dayRange_2)                           # Volatility
+
+                    positive_changes = sum(1 for i in range(len(price_list[:dayRange_2]) - 1) if price_list[i] > price_list[i + 1])
+                    negative_changes = sum(1 for i in range(len(price_list[:dayRange_2]) - 1) if price_list[i] < price_list[i + 1])
+
+                    if pool.price_analytics[f'change_{dayRange_2}d'] > 0.05:                                            # Trend
+                        pool.price_analytics[f'trend_{dayRange_2}d'] = 'up'
+                        pool.price_analytics[
+                            f'trend_confidance_{dayRange_2}d'] = positive_changes / dayRange_2                          # Trend confidence
+                    elif pool.price_analytics[f'change_{dayRange_2}d'] < -0.05:
+                        pool.price_analytics[f'trend_{dayRange_2}d'] = 'down'
+                        pool.price_analytics[
+                            f'trend_confidance_{dayRange_2}d'] = negative_changes / dayRange_2                          # Trend confidence
+                    else:
+                        pool.price_analytics[f'trend_{dayRange_2}d'] = 'sideways'
+                        pool.price_analytics[f'trend_confidance_{dayRange_2}d'] = (positive_changes - negative_changes) \
+                                                                                  / dayRange_2                          # Trend confidence
+
+                else:
+                    pool.price_analytics[f'change_{dayRange_2}d'] = None
+                    pool.price_analytics[f'stdev_{dayRange_2}d'] = None
+                    pool.price_analytics[f'volatility_{dayRange_2}d'] = None
+                    pool.price_analytics[f'trend_{dayRange_2}d'] = None
+                    pool.price_analytics[f'trend_confidence_{dayRange_2}d'] = None
+                # ----------------------------------------/
+
+
+    def calc_price_score(self):
+        # Positive price change is good, but if it's too much (100x), we get negative points
+        #
+
+        for pool in self.dicPools.values():
+            if len(pool.price_analytics) > 0:
+                # ---------- 14d Price change
+                if 'change_14d' in pool.price_analytics and pool.price_analytics['change_14d'] is not None:
+                    if pool.price_analytics['change_14d'] < 0:              # Negative trend
+                        pool.price_score = pool.price_score + float(pool.price_analytics['change_14d']) * 10
+                    elif pool.price_analytics['change_14d'] > 5:            # Too wild rise
+                        pool.price_score = pool.price_score - 20
+                    else:                                                   # Positive trend
+                        pool.price_score = pool.price_score + float(pool.price_analytics['change_14d']) * 10
+                # ----------/
+                # ---------- 7d Price change
+                if 'change_7d' in pool.price_analytics and pool.price_analytics['change_7d'] is not None:
+                    if pool.price_analytics['change_7d'] < 0:              # Negative trend
+                        pool.price_score = pool.price_score + float(pool.price_analytics['change_7d']) * 10
+                    elif pool.price_analytics['change_7d'] > 5:            # Too wild rise
+                        pool.price_score = pool.price_score - 20
+                    else:                                                   # Positive trend
+                        pool.price_score = pool.price_score + float(pool.price_analytics['change_7d']) * 10
+                # ----------/
+
+                # ----------Standard deviation
+                if 'stdev_14d' in pool.price_analytics and pool.price_analytics['stdev_14d'] is not None:
+                    pool.price_score = pool.price_score + (1-float(pool.price_analytics['stdev_14d'])) * 10
+                if 'stdev_7d' in pool.price_analytics and pool.price_analytics['stdev_7d'] is not None:
+                    pool.price_score = pool.price_score + (1-float(pool.price_analytics['stdev_7d'])) * 10
+                # ----------/
+                # ---------- Volatility
+                if 'volatility_14d' in pool.price_analytics and pool.price_analytics['volatility_14d'] is not None:
+                    pool.price_score = pool.price_score + float(pool.price_analytics['stdev_14d']) * -5
+                if 'volatility_7d' in pool.price_analytics and pool.price_analytics['volatility_7d'] is not None:
+                    pool.price_score = pool.price_score + float(pool.price_analytics['stdev_7d']) * -5
+                # ----------/
+
+
+                pool.total_score = pool.score + pool.price_score
             else:
-                pool.price_analytics[f'trend_{dayRange_1}d'] = 'sideways'
-                pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = (positive_changes - negative_changes)\
-                                                                          / dayRange_1                   # Trend confidence
+                pool.total_score = 0
 
-        else:
-            pool.price_analytics[f'change_{dayRange_1}d'] = None
-            pool.price_analytics[f'stdev_{dayRange_1}d'] = None
-            pool.price_analytics[f'volatility_{dayRange_1}d'] = None
-            pool.price_analytics[f'trend_{dayRange_1}d'] = None
-            pool.price_analytics[f'trend_confidence_{dayRange_1}d'] = None
 
-        if len(pool.price_analytics) > dayRange_2 -1:
-            pool.price_analytics[f'change_{dayRange_2}d'] = (pool.price_history[0] - \
-                                    pool.price_history[dayRange_2-1]) / pool.price_history[0]       # Change %
-            pool.price_analytics[f'stdev_{dayRange_2}d'] = np.std(price_list[:dayRange_2])              # Stdev
-            pool.price_analytics[f'volatility_{dayRange_2}d'] = np.std(price_list[:dayRange_2]) \
-                                                                * np.sqrt(dayRange_2)                   # Volatility
+        dicSorted_pools = sorted(self.dicPools.values(), key=lambda x: x.price_score, reverse=True)
+        self.dicPools = {}  # Reset the dictionary
 
-            positive_changes = sum(1 for i in range(len(price_list[:dayRange_2]) - 1) if price_list[i] > price_list[i + 1])
-            negative_changes = sum(1 for i in range(len(price_list[:dayRange_2]) - 1) if price_list[i] < price_list[i + 1])
-
-            if pool.price_analytics[f'change_{dayRange_2}d'] > 0.05:  # Trend
-                pool.price_analytics[f'trend_{dayRange_2}d'] = 'up'
-                pool.price_analytics[
-                    f'trend_confidance_{dayRange_2}d'] = positive_changes / dayRange_2  # Trend confidence
-            elif pool.price_analytics[f'change_{dayRange_2}d'] < -0.05:
-                pool.price_analytics[f'trend_{dayRange_2}d'] = 'down'
-                pool.price_analytics[
-                    f'trend_confidance_{dayRange_2}d'] = negative_changes / dayRange_2  # Trend confidence
-            else:
-                pool.price_analytics[f'trend_{dayRange_2}d'] = 'sideways'
-                pool.price_analytics[f'trend_confidance_{dayRange_2}d'] = (positive_changes - negative_changes) \
-                                                                          / dayRange_2  # Trend confidence
-
-        else:
-            pool.price_analytics[f'change_{dayRange_2}d'] = None
-            pool.price_analytics[f'stdev_{dayRange_2}d'] = None
-            pool.price_analytics[f'volatility_{dayRange_2}d'] = None
-            pool.price_analytics[f'trend_{dayRange_2}d'] = None
-            pool.price_analytics[f'trend_confidence_{dayRange_2}d'] = None
-        # ----------------------------------------/
+        rank = 0    # Reset
+        for pool in dicSorted_pools:
+            if pool.total_score > 0:
+                rank +=1
+                pool.rank = rank
+                self.dicPools[pool.db_info_id] = pool
 
 
 class Pool:
 
     def __init__(self, dicPoolData):
-        self.db_info_id: float          # Info table ID
-        self.symbol: str                # Pair symbol
+        self.db_info_id: float                      # Info table ID
+        self.symbol: str                            # Pair symbol
 
-        self.age: int                   # Number of days
-        self.apy_base: float            # Base APY
-        self.apy_reward: float          # Reward APY
+        self.age: int                               # Number of days
+        self.apy_base: float                        # Base APY
+        self.apy_reward: float                      # Reward APY
 
-        self.chain: str                 # Chain name
-        self.protocol: str              # Protocol name
+        self.chain: str                             # Chain name
+        self.protocol: str                          # Protocol name
 
-        self.fee_rate: float            # Take from the meta (need to parse and doesn't exist for 80% of cases)
+        self.fee_rate: float                        # Take from the meta (need to parse and doesn't exist for 80% of cases)
 
-        self.tvl_history: dict          # TVl history (0 = today, 1 = yesterday...)
-        self.volume_history: dict       # Volume history (0 = today, 1 = yesterday...)
-        self.apy_history: dict          # APY history (0 = today, 1 = yesterday...)
-        self.vol_to_tvl_history: dict   # Volume to TVL history (0 = today, 1 = yesterday...)
+        self.tvl_history: dict                      # TVl history (0 = today, 1 = yesterday...)
+        self.volume_history: dict                   # Volume history (0 = today, 1 = yesterday...)
+        self.apy_history: dict                      # APY history (0 = today, 1 = yesterday...)
+        self.vol_to_tvl_history: dict               # Volume to TVL history (0 = today, 1 = yesterday...)
 
-        self.vol_to_tvl_min_history: dict   # Minimum vol to tvl rate for each day (0 = today, 1 = yesterday...)
-        self.vol_to_tvl_max_history: dict   # Maximum vol to tvl rate for each day (0 = today, 1 = yesterday...)
-        self.vol_to_tvl_avg_history: dict   # AVG vol to tvl rate for each day (0 = today, 1 = yesterday...)
+        self.vol_to_tvl_min_history: dict           # Minimum vol to tvl rate for each day (0 = today, 1 = yesterday...)
+        self.vol_to_tvl_max_history: dict           # Maximum vol to tvl rate for each day (0 = today, 1 = yesterday...)
+        self.vol_to_tvl_avg_history: dict           # AVG vol to tvl rate for each day (0 = today, 1 = yesterday...)
 
-        self.base_token: str                # Primary focus token
-        self.quote_token: str               # Pair token (ETH, AVAX, SOL, etc.)
-        self.contract_base: str             # Contract address 1
-        self.contract_quote: str            # Contract address 2
-        self.gecko_id_base: str             # Gecko id 1
-        self.gecko_id_quote: str            # Gecko id 2
-
-        self.live_price: float          # Most up to date price of the token
-        self.live_tvl: float            # Most up to date tvl of the token
-        self.live_volume: float         # Most up to date volume of the token
-        self.live_vol_to_tvl: float     # Most up to date volume to tvl ratio
-
+        self.base_token: str                        # Primary focus token
+        self.quote_token: str                       # Pair token (ETH, AVAX, SOL, etc.)
+        self.contract_base: str                     # Contract address 1
+        self.contract_quote: str                    # Contract address 2
+        self.gecko_id_base: str                     # Gecko id 1
+        self.gecko_id_quote: str                    # Gecko id 2
 
         self.vol_to_tvl_above_one_days: float       # Days above 1
         self.vol_to_tvl_above_one_rate: float       # Rate of days above 1 versus total days
@@ -485,6 +532,8 @@ class Pool:
 
         self.score: float                           # Total score for the pool
         self.rank: int                              # Rank based on the score
+        self.price_score: float = 0                 # Score based on the price
+        self.total_score: float                     # Previous score + price score
 
         self.pair_contract: Pair                    # Pair object (retrieved from DexTools API)
         self.price_history: dict                    # Key: distance in days from today, value: Price
