@@ -3,6 +3,7 @@ import pandas as pd
 import re
 from dexScreener import Contracts, Pair
 from defiLlama import Price
+import numpy as np
 
 
 class Analytics:
@@ -214,6 +215,7 @@ class Analytics:
 
         dicScoreWeights = {}
         dicScoreWeights['daysAboveOne'] = 1
+        dicScoreWeights['daysAbove0.5'] = 0.5
         dicScoreWeights['tvl_avg_3d'] = 0.5
         dicScoreWeights['tvl_avg_7d'] = 0.25
         dicScoreWeights['vol_to_tvl'] = 0.25
@@ -357,6 +359,87 @@ class Analytics:
                 pool.price_history = None
 
 
+
+    def get_price_analytics(self):
+
+        for pool in self.dicPools.values():
+            if pool.price_history is not None:
+                self.calc_price_analytics(pool)
+
+    def calc_price_analytics(self, pool: Pool, dayRange_1: int = 14, dayRange_2:int = 7):
+
+        # Trend (up vs down)
+        # Trend strength (how much we moved)
+        # Trend confidence (how often we moved with the trend)
+        # Standard deviation
+        # Volatility
+
+        pool.price_analytics = {}
+        price_list = pool.price_history.values()
+        price_list.reverse()
+
+        # ----------------------------------------
+        if len(pool.price_analytics) > dayRange_1 -1:
+            pool.price_analytics[f'change_{dayRange_1}d'] = (pool.price_history[0] - \
+                                    pool.price_history[dayRange_1-1]) / pool.price_history[0]       # Change %
+            pool.price_analytics[f'stdev_{dayRange_1}d'] = np.std(price_list[:dayRange_1])              # Stdev
+            pool.price_analytics[f'volatility_{dayRange_1}d'] = np.std(price_list[:dayRange_1]) \
+                                                                * np.sqrt(dayRange_1)                   # Volatility
+
+
+            positive_changes = sum(1 for i in range(len(price_list[:dayRange_1]) - 1) if price_list[i] > price_list[i + 1])
+            negative_changes = sum(1 for i in range(len(price_list[:dayRange_1]) - 1) if price_list[i] < price_list[i + 1])
+
+            if pool.price_analytics[f'change_{dayRange_1}d'] > 0.05:                                    # Trend
+                pool.price_analytics[f'trend_{dayRange_1}d'] = 'up'
+                pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = positive_changes / dayRange_1 # Trend confidence
+            elif pool.price_analytics[f'change_{dayRange_1}d'] < -0.05:
+                pool.price_analytics[f'trend_{dayRange_1}d'] = 'down'
+                pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = negative_changes / dayRange_1  # Trend confidence
+            else:
+                pool.price_analytics[f'trend_{dayRange_1}d'] = 'sideways'
+                pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = (positive_changes - negative_changes)\
+                                                                          / dayRange_1                   # Trend confidence
+
+        else:
+            pool.price_analytics[f'change_{dayRange_1}d'] = None
+            pool.price_analytics[f'stdev_{dayRange_1}d'] = None
+            pool.price_analytics[f'volatility_{dayRange_1}d'] = None
+            pool.price_analytics[f'trend_{dayRange_1}d'] = None
+            pool.price_analytics[f'trend_confidence_{dayRange_1}d'] = None
+
+        if len(pool.price_analytics) > dayRange_2 -1:
+            pool.price_analytics[f'change_{dayRange_2}d'] = (pool.price_history[0] - \
+                                    pool.price_history[dayRange_2-1]) / pool.price_history[0]       # Change %
+            pool.price_analytics[f'stdev_{dayRange_2}d'] = np.std(price_list[:dayRange_2])              # Stdev
+            pool.price_analytics[f'volatility_{dayRange_2}d'] = np.std(price_list[:dayRange_2]) \
+                                                                * np.sqrt(dayRange_2)                   # Volatility
+
+            positive_changes = sum(1 for i in range(len(price_list[:dayRange_2]) - 1) if price_list[i] > price_list[i + 1])
+            negative_changes = sum(1 for i in range(len(price_list[:dayRange_2]) - 1) if price_list[i] < price_list[i + 1])
+
+            if pool.price_analytics[f'change_{dayRange_2}d'] > 0.05:  # Trend
+                pool.price_analytics[f'trend_{dayRange_2}d'] = 'up'
+                pool.price_analytics[
+                    f'trend_confidance_{dayRange_2}d'] = positive_changes / dayRange_2  # Trend confidence
+            elif pool.price_analytics[f'change_{dayRange_2}d'] < -0.05:
+                pool.price_analytics[f'trend_{dayRange_2}d'] = 'down'
+                pool.price_analytics[
+                    f'trend_confidance_{dayRange_2}d'] = negative_changes / dayRange_2  # Trend confidence
+            else:
+                pool.price_analytics[f'trend_{dayRange_2}d'] = 'sideways'
+                pool.price_analytics[f'trend_confidance_{dayRange_2}d'] = (positive_changes - negative_changes) \
+                                                                          / dayRange_2  # Trend confidence
+
+        else:
+            pool.price_analytics[f'change_{dayRange_2}d'] = None
+            pool.price_analytics[f'stdev_{dayRange_2}d'] = None
+            pool.price_analytics[f'volatility_{dayRange_2}d'] = None
+            pool.price_analytics[f'trend_{dayRange_2}d'] = None
+            pool.price_analytics[f'trend_confidence_{dayRange_2}d'] = None
+        # ----------------------------------------/
+
+
 class Pool:
 
     def __init__(self, dicPoolData):
@@ -405,6 +488,8 @@ class Pool:
 
         self.pair_contract: Pair                    # Pair object (retrieved from DexTools API)
         self.price_history: dict                    # Key: distance in days from today, value: Price
+
+        self.price_analytics: dict                  # trend_Nd, trend_confidence_Nd, change_Nd, volatility_Nd, stdev, volatility
 
         self.parse(dicPoolData)
 
