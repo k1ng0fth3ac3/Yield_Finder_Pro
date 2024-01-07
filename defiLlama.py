@@ -646,7 +646,7 @@ class Price:
     def __init__(self):
         self.history = {}            # Key: coin, Value: dic of prices (UNIX / price)
 
-    def get_history_by_coinGecko(self, id_list: list, span: int = 10, period:str = '1d', searchWidth: int = 600):
+    def get_history_by_coinGecko(self, id_list: list, span: int = 14, period:str = '1d', searchWidth: int = 600):
 
         for i, coin_id in enumerate(id_list,start=1):
             if i == 1:
