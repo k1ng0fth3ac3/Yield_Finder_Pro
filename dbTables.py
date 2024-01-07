@@ -106,6 +106,14 @@ class Create_table:
         self.connection.create_table(table_name, dicCols)
         self.connection.add_to_action_log(table_name, self.action, 0, f'{len(dicCols)} columns')
 
+    def result_table(self):
+        table_name = 'result_table'
+
+        dicCols = self.table_info.result_table()
+
+        self.connection.create_table(table_name, dicCols)
+        self.connection.add_to_action_log(table_name, self.action, 0, f'{len(dicCols)} columns')
+
 
 class Tables_info:
 
@@ -272,5 +280,53 @@ class Tables_info:
         dicCols['chain'] = 'VARCHAR(35)'
         dicCols['contract'] = 'VARCHAR(255)'
         dicCols['pool_count'] = 'INT'
+
+        return dicCols
+
+
+    def result_table(self):
+        dicCols = {}
+        dicCols['id'] = 'SERIAL PRIMARY KEY'
+        dicCols['date_added'] = 'DATE'
+        dicCols['rank'] = 'INT'
+        dicCols['total_score'] = 'DECIMAL(5,2)'
+        dicCols['tvl_vol_score'] = 'DECIMAL(5,2)'
+        dicCols['price_score'] = 'DECIMAL(5,2)'
+
+        dicCols['symbol'] = 'VARCHAR(20)'
+        dicCols['age'] = 'INT'
+        dicCols['apy_base'] = 'DECIMAL(12,4)'
+        dicCols['chain'] = 'VARCHAR(35)'
+        dicCols['protocol'] = 'VARCHAR(100)'
+        dicCols['fee_rate'] = 'DECIMAL(5,4)'
+
+        dicCols['pair_address'] = 'VARCHAR(255)'
+        dicCols['base_token'] = 'VARCHAR(100)'
+        dicCols['quote_token'] = 'VARCHAR(100)'
+        dicCols['contract_base'] = 'VARCHAR(255)'
+        dicCols['contract_quote'] = 'VARCHAR(255)'
+        dicCols['gecko_id_base'] = 'VARCHAR(100)'
+        dicCols['gecko_id_quote'] = 'VARCHAR(100)'
+
+        dicCols['fdv'] = 'DECIMAL(14,0)'
+        dicCols['price'] = 'DECIMAL(16,10)'
+        dicCols['tvl'] = 'DECIMAL(14,0)'
+        dicCols['volume'] = 'DECIMAL(14,0)'
+        dicCols['vol_tvl'] = 'DECIMAL(6,3)'
+
+        dicCols['vol_tvl_above1_rate'] = 'DECIMAL(3,2)'
+        dicCols['vol_to_tvl_avg_3d'] = 'DECIMAL(3,2)'
+        dicCols['vol_to_tvl_avg_7d'] = 'DECIMAL(3,2)'
+
+        dicCols['price_trend_14d'] = 'VARCHAR(10)'
+        dicCols['price_trend_7d'] = 'VARCHAR(10)'
+        dicCols['price_trend_confidence_14d'] = 'DECIMAL(3,2)'
+        dicCols['price_trend_confidence_14d'] = 'DECIMAL(3,2)'
+        dicCols['price_change_14d'] = 'DECIMAL(5,3)'
+        dicCols['price_change_7d'] = 'DECIMAL(5,3)'
+        dicCols['price_stdev_14d'] = 'DECIMAL(5,4)'
+        dicCols['price_stdev_7d'] = 'DECIMAL(5,4)'
+        dicCols['price_volatility_14d'] = 'DECIMAL(6,4)'
+        dicCols['price_volatility_7d'] = 'DECIMAL(6,4)'
 
         return dicCols
