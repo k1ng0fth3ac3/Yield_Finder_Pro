@@ -12,6 +12,17 @@ class Analytics:
         self.dicPools = {}
         self.contracts = Contracts()
 
+
+    def calc_everything(self, min_apy:int = 500, topNpools: int = 20):
+        self.calc_daily_raw_pools(min_apy=min_apy)
+        self.get_advanced_pool_data()
+        self.rank_pools()
+        self.get_pair_info(top_N_pools=topNpools)
+        self.get_token_price_history(top_N_pools=topNpools)
+        self.calc_price_analytics()
+        self.calc_price_score()
+
+
     def calc_daily_raw_pools(self, min_apy: int = 500, min_tvl: float = 20000):
 
 
@@ -54,8 +65,8 @@ class Analytics:
 
 
         dicInfo = connection.get_table_info(table_name)
-        connection.add_to_action_log(table_name,'data_analytics',dicInfo['total_rows'],'Analytics Phase 1')
-        #print(f'{dicInfo["total_rows"]} rows added to table (testing - not added to action log')
+        #connection.add_to_action_log(table_name,'data_analytics',dicInfo['total_rows'],'Analytics Phase 1')
+        print(f'{dicInfo["total_rows"]} rows added to table (testing - not added to action log')
         connection.close_connection()
 
     def get_advanced_pool_data(self):
@@ -324,9 +335,10 @@ class Analytics:
 
                 # Check for the closest match (TVL the most reliable indicator)
                 for contract, pair in pairs.items():
-                    if abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0])) < min_delta_tvl:
-                        min_delta_tvl = abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0]))
-                        closest_contract = contract     # Best one so far
+                    if pool.tvl_history is not None and 0 in pool.tvl_history:
+                        if abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0])) < min_delta_tvl:
+                            min_delta_tvl = abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0]))
+                            closest_contract = contract     # Best one so far
 
 
                 if min_delta_tvl < max_tvl_delta:
@@ -390,13 +402,13 @@ class Analytics:
 
                     if pool.price_analytics[f'change_{dayRange_1}d'] > 0.05:                                            # Trend
                         pool.price_analytics[f'trend_{dayRange_1}d'] = 'up'
-                        pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = positive_changes / dayRange_1         # Trend confidence
+                        pool.price_analytics[f'trend_confidence_{dayRange_1}d'] = positive_changes / dayRange_1         # Trend confidence
                     elif pool.price_analytics[f'change_{dayRange_1}d'] < -0.05:
                         pool.price_analytics[f'trend_{dayRange_1}d'] = 'down'
-                        pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = negative_changes / dayRange_1         # Trend confidence
+                        pool.price_analytics[f'trend_confidence_{dayRange_1}d'] = negative_changes / dayRange_1         # Trend confidence
                     else:
                         pool.price_analytics[f'trend_{dayRange_1}d'] = 'sideways'
-                        pool.price_analytics[f'trend_confidance_{dayRange_1}d'] = (positive_changes - negative_changes)\
+                        pool.price_analytics[f'trend_confidence_{dayRange_1}d'] = (positive_changes - negative_changes)\
                                                                                   / dayRange_1                          # Trend confidence
 
                 else:
@@ -419,14 +431,14 @@ class Analytics:
                     if pool.price_analytics[f'change_{dayRange_2}d'] > 0.05:                                            # Trend
                         pool.price_analytics[f'trend_{dayRange_2}d'] = 'up'
                         pool.price_analytics[
-                            f'trend_confidance_{dayRange_2}d'] = positive_changes / dayRange_2                          # Trend confidence
+                            f'trend_confidence_{dayRange_2}d'] = positive_changes / dayRange_2                          # Trend confidence
                     elif pool.price_analytics[f'change_{dayRange_2}d'] < -0.05:
                         pool.price_analytics[f'trend_{dayRange_2}d'] = 'down'
                         pool.price_analytics[
-                            f'trend_confidance_{dayRange_2}d'] = negative_changes / dayRange_2                          # Trend confidence
+                            f'trend_confidence_{dayRange_2}d'] = negative_changes / dayRange_2                          # Trend confidence
                     else:
                         pool.price_analytics[f'trend_{dayRange_2}d'] = 'sideways'
-                        pool.price_analytics[f'trend_confidance_{dayRange_2}d'] = (positive_changes - negative_changes) \
+                        pool.price_analytics[f'trend_confidence_{dayRange_2}d'] = (positive_changes - negative_changes) \
                                                                                   / dayRange_2                          # Trend confidence
 
                 else:
@@ -535,7 +547,7 @@ class Pool:
         self.price_score: float = 0                 # Score based on the price
         self.total_score: float                     # Previous score + price score
 
-        self.pair_contract: Pair                    # Pair object (retrieved from DexTools API)
+        self.pair_contract: Pair = None             # Pair object (retrieved from DexTools API)
         self.price_history: dict                    # Key: distance in days from today, value: Price
 
         self.price_analytics: dict                  # trend_Nd, trend_confidence_Nd, change_Nd, volatility_Nd, stdev, volatility

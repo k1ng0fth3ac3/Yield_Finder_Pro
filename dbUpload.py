@@ -5,6 +5,8 @@ from datetime import date
 from defiLlama import Pools, Protocols,Protocol, Chains
 from coinGecko import Gecko
 import pandas as pd
+from analytics import Analytics, Pool
+
 
 class Upload:
 
@@ -678,7 +680,88 @@ class Upload:
                 data.append(data_row)
         # -----/
 
-       #     columns = dicTableInfo['columns']
-       #     connection.insert_to_table(table_name, columns, data)
-       # connection.add_to_action_log(table_name, self.action, len(data), 'Update')
+        columns = dicTableInfo['columns']
+        connection.insert_to_table(table_name, columns, data)
+        connection.add_to_action_log(table_name, self.action, len(data), 'Update')
         connection.close_connection()
+
+
+
+    def result_table(self,min_apy=500, topNpools=50, overWriteTheDay:bool = True):
+
+        # ----- Get Table info
+        table_name = 'result_table'
+        connection = Connection()
+        dicTableInfo = connection.get_table_info(table_name)
+        # -----/
+
+        if dicTableInfo['upload_last_date'] is None or \
+                (dicTableInfo['upload_last_date'] != datetime.datetime.now().date() or \
+                        overWriteTheDay):
+
+            if dicTableInfo['upload_last_date'] == datetime.datetime.now().date():
+                connection.delete_day_from_table(table_name,dateCol='date_added')
+                connection.delete_log_entry(table_name,'Data upload')
+
+
+        analytics = Analytics()
+        analytics.calc_everything(min_apy=min_apy,topNpools=topNpools)
+
+        data = []
+        for pool in analytics.dicPools.values():
+
+            data_row = ()
+            data_row = (f'{datetime.datetime.now().date()}',
+                        pool.rank,
+                        pool.total_score,
+                        pool.score,
+                        pool.price_score,
+
+                        f'{pool.symbol}',
+                        pool.age,
+                        pool.apy_base,
+
+                        f'{pool.chain}',
+                        f'{pool.protocol}',
+
+                        pool.fee_rate,
+
+                        f'{pool.pair_contract.pairAddress}' if pool.pair_contract is not None else None,
+                        f'{pool.base_token}',
+                        f'{pool.quote_token}',
+                        f'{pool.contract_base}',
+                        f'{pool.contract_quote}',
+                        f'{pool.gecko_id_base}',
+                        f'{pool.gecko_id_quote}',
+
+                        float(pool.pair_contract.fdv) if pool.pair_contract is not None else None,
+                        float(pool.pair_contract.priceUsd) if pool.pair_contract is not None else None,
+                        float(pool.pair_contract.liquidity_usd) if pool.pair_contract is not None else None,
+                        float(pool.pair_contract.volumes['h24']) if pool.pair_contract is not None else None,
+                        float(pool.pair_contract.volumes['h24']) / float(pool.pair_contract.liquidity_usd) if pool.pair_contract is not None else None,
+
+                        pool.vol_to_tvl_above_one_rate,
+                        pool.vol_to_tvl_avg_3d,
+                        pool.vol_to_tvl_avg_7d,
+
+                        f'{pool.price_analytics["trend_14d"]}' if "trend_14d" in pool.price_analytics else None,
+                        f'{pool.price_analytics["trend_7d"]}' if "trend_7d" in pool.price_analytics else None,
+                        pool.price_analytics['trend_confidence_14d'] if 'trend_confidence_14d' in pool.price_analytics else None,
+                        pool.price_analytics['trend_confidence_7d'] if 'trend_confidence_7d' in pool.price_analytics else None,
+                        pool.price_analytics['change_14d'] if 'change_14d' in pool.price_analytics else None,
+                        pool.price_analytics['change_7d'] if 'change_7d' in pool.price_analytics else None,
+                        pool.price_analytics['stdev_14d'] if 'stdev_14d' in pool.price_analytics else None,
+                        pool.price_analytics['stdev_7d'] if 'stdev_7d' in pool.price_analytics else None,
+                        pool.price_analytics['volatility_14d'] if 'volatility_14d' in pool.price_analytics else None,
+                        pool.price_analytics['volatility_7d'] if 'volatility_7d' in pool.price_analytics else None
+
+                        )
+
+            data.append(data_row)
+        # -----/
+
+        columns = dicTableInfo['columns']
+        connection.insert_to_table(table_name, columns, data)
+        connection.add_to_action_log(table_name, self.action, len(data), 'Update')
+        connection.close_connection()
+

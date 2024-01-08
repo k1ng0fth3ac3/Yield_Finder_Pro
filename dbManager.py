@@ -70,8 +70,6 @@ class Connection:
     def truncate_table(self, table_name: str):
         pass
 
-    def delete_table(self, table_name: str):
-        pass
 
     def select_first_row(self, table_name: str):
         pass
@@ -183,9 +181,9 @@ class Connection:
 
         print(f'Deleted entry {table_name} -- {action} -- {date}')
 
-    def delete_day_from_table(self, table_name: str, date = datetime.datetime.now().date()):
+    def delete_day_from_table(self, table_name: str, dateCol: str = 'date', date = datetime.datetime.now().date()):
         query = f"""
-        DELETE FROM {table_name} WHERE date = '{date}';
+        DELETE FROM {table_name} WHERE {dateCol} = '{date}';
         """
 
         self.cur.execute(query)

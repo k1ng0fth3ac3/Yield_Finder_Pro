@@ -671,7 +671,7 @@ class Price:
                 prices = coin_data['prices']
 
                 for i, price_data in enumerate(prices, start=1):
-                    index = span - i
+                    index = len(prices) - i
                     unix = price_data['timestamp']
                     price = price_data['price']
                     self.history[gecko_id][index] = price
