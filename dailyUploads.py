@@ -11,4 +11,4 @@ upload = Upload()
 #upload.chains_info()
 #upload.protocols_info()
 #upload.token_contracts()
-upload.result_table(min_apy=500,topNpools=50)            # There's an issue with the TOP pool parameter
+upload.result_table(min_apy=500,topNpools=100)            # There's an issue with the TOP pool parameter

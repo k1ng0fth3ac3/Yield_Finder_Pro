@@ -44,7 +44,7 @@ class Analytics:
                         PI.chain,
                         ROUND(PH.apy,1) AS apy,
                         PH.tvl,
-                        PH.volume,
+                        CASE WHEN PH.volume IS NULL THEN 0 ELSE PH.volume END AS volume,
                         ROUND(CASE WHEN PH.volume IS NOT NULL THEN PH.volume / PH.tvl ELSE NULL END, 2) AS vol_tvl_rate,
                         ROUND(PH.apy_base,1) AS apy_base,
                         ROUND(PH.apy_reward,1) AS apy_reward,
@@ -55,7 +55,7 @@ class Analytics:
                    AND	PH.tvl > %s
                    AND	PI.symbol NOT LIKE %s
                    AND  PI.pool_token_1 IS NOT NULL
-                   AND  PH.volume IS NOT NULL
+                   --AND  PH.volume IS NOT NULL
                    AND LENGTH(PI.symbol) - LENGTH(REPLACE(PI.symbol, '-', '')) = 1"""
         order_by = f"""PH.apy DESC"""
 
@@ -117,12 +117,15 @@ class Analytics:
             vol_to_tvl_sum = 0          # Reset
 
 
+            dayCounter = 0  #Reset
             for index in range(len(df) - 1, -1, -1):
-                if index > 30:
+                dayCounter +=1
+                if dayCounter > 30:      # 30 days max
                     break
 
                 dicPoolData['tvl_history'][len(df) - index -1] = df['tvl'].iloc[index]
                 dicPoolData['apy_history'][len(df) - index-1] = df['apy'].iloc[index]
+
 
                 if df['volume'].iloc[index] is not None:
                     dicPoolData['volume_history'][len(df) - index - 1] = df['volume'].iloc[index]
@@ -143,11 +146,11 @@ class Analytics:
                     vol_to_tvl_sum = vol_to_tvl_sum + df['volume'].iloc[index] / df['tvl'].iloc[index]
                     dicPoolData['vol_to_tvl_avg_history'][len(df) - index - 1] = vol_to_tvl_sum / (len(df) - index)
                 else:
-                    dicPoolData['volume_history'][len(df) - index - 1] = None
-                    dicPoolData['vol_to_tvl_history'][len(df) - index - 1] = None
-                    dicPoolData['vol_to_tvl_min_history'][len(df) - index - 1] = None
-                    dicPoolData['vol_to_tvl_max_history'][len(df) - index - 1] = None
-                    dicPoolData['vol_to_tvl_avg_history'][len(df) - index - 1] = None
+                    dicPoolData['volume_history'][len(df) - index - 1] = 0
+                    dicPoolData['vol_to_tvl_history'][len(df) - index - 1] = 0
+                    dicPoolData['vol_to_tvl_min_history'][len(df) - index - 1] = 0
+                    dicPoolData['vol_to_tvl_max_history'][len(df) - index - 1] = 0
+                    dicPoolData['vol_to_tvl_avg_history'][len(df) - index - 1] = 0
 
 
             pool_info = connection.select_table_data('pools_info', columns='*', where_clause='id = %s', params=(id,))
@@ -212,11 +215,11 @@ class Analytics:
                 dicPoolData['gecko_id_base'] = dicPoolData['gecko_id_2']
                 dicPoolData['gecko_id_quote'] = dicPoolData['gecko_id_1']
 
-
-
-            if not (dicPoolData['token_1'] is None or dicPoolData['token_2'] is None):
-                pool = Pool(dicPoolData)            # Create Pool object
-                self.dicPools[id] = pool            # Add to collection
+            # We have too many results from DexScreener API if we get top pairs (like USDT/WBNB), so lets exclude those
+            if not (token_1_index < 100 and token_2_index < 100):
+                if not (dicPoolData['token_1'] is None or dicPoolData['token_2'] is None):
+                    pool = Pool(dicPoolData)            # Create Pool object
+                    self.dicPools[id] = pool            # Add to collection
 
 
         connection.close_connection()
@@ -307,7 +310,10 @@ class Analytics:
             self.dicPools[pool.db_info_id] = pool
 
 
-    def get_pair_info(self, top_N_pools: int = 10, max_tvl_delta: float = 0.3):
+    def get_pair_info(self, top_N_pools: int = 10, max_tvl_delta: float = 0.4):
+        # There is an issue if we are trying to get data for contracts that have too many pairs (eg. USDT / WBNB)
+
+
 
         contract_list = []
         dicQuoteTokens = {}
@@ -316,8 +322,8 @@ class Analytics:
             if index > top_N_pools:
                 break
 
-            contract_list.append(pool.contract_base)
-            dicQuoteTokens[pool.contract_quote] = pool.quote_token
+            contract_list.append(pool.contract_base.lower())
+            dicQuoteTokens[pool.contract_quote] = pool.quote_token.lower()
 
 
         self.contracts.get_pairs(coin_address_list=contract_list, dicQuoteTokens=dicQuoteTokens)
@@ -325,8 +331,8 @@ class Analytics:
         for index, pool in enumerate(self.dicPools.values(), start=1):
 
             if index > top_N_pools:
-                break
                 print(f'Broke on {pool.contract_base}')
+                break
 
             if pool.contract_base in self.contracts.list:
                 pairs = self.contracts.list[pool.contract_base]
@@ -334,16 +340,20 @@ class Analytics:
                 min_delta_tvl = 1
 
                 # Check for the closest match (TVL the most reliable indicator)
-                for contract, pair in pairs.items():
-                    if pool.tvl_history is not None and 0 in pool.tvl_history:
+                if pool.tvl_history is not None and 0 in pool.tvl_history:
+                    for contract, pair in pairs.items():
+
+                        if contract == '0xf9878a5dd55edc120fde01893ea713a4f032229c':
+                            print('found')
+
                         if abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0])) < min_delta_tvl:
                             min_delta_tvl = abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0]))
                             closest_contract = contract     # Best one so far
 
-
                 if min_delta_tvl < max_tvl_delta:
                     pool.pair_contract = self.contracts.list[pool.contract_base][closest_contract]
                 else:
+                    #print(f'{pool.symbol} -- {pool.db_info_id} -- {pool.contract_base} -- {min_delta_tvl} -- {len(pairs)}')
                     pool.pair_contract = None
             else:
                 pool.pair_contract = None
@@ -568,8 +578,8 @@ class Pool:
 
         self.base_token = dicPoolData['base']
         self.quote_token = dicPoolData['quote']
-        self.contract_base = dicPoolData['base_contract']
-        self.contract_quote = dicPoolData['quote_contract']
+        self.contract_base = dicPoolData['base_contract'].lower()
+        self.contract_quote = dicPoolData['quote_contract'].lower()
         self.gecko_id_base = dicPoolData['gecko_id_base']
         self.gecko_id_quote = dicPoolData['gecko_id_quote']
 

@@ -1,5 +1,6 @@
 import requests
 from datetime import datetime
+import time
 
 class Contracts:
 
@@ -8,7 +9,10 @@ class Contracts:
 
     def get_pairs(self, coin_address_list: list, dicQuoteTokens: dict = None, ignore_liq_below: float = 5000, ignore_vol_below: float = 1000):
         base_url = 'https://api.dexscreener.com/latest/dex/tokens/'
-        chunk_size = 30  # Maximum items per API call
+        chunk_size = 1  # Maximum items per API call
+        # NOTE: there seems to be an issue where not all data is retrieved if our results are too large
+        # For common coins like ETH, BNB etc. we have way too many matches.
+        # That's why, changed the chunk_size to 1 (from 30)
 
         for i in range(0, len(coin_address_list), chunk_size):
             chunk = coin_address_list[i:i + chunk_size]
@@ -19,17 +23,29 @@ class Contracts:
             response = requests.get(url)
             data = response.json()
 
-            for pair_data in data['pairs']:
-                token_contract = pair_data['baseToken']['address'].lower()
-                pair_contract = pair_data['pairAddress'].lower()
+            if data['pairs'] is not None:
+                for pair_data in data['pairs']:
+                    token_contract = pair_data['baseToken']['address'].lower()
+                    pair_contract = pair_data['pairAddress'].lower()
 
-                if dicQuoteTokens is None or pair_data['quoteToken']['address'].lower() in dicQuoteTokens:
-                    if pair_data['liquidity']['usd'] > ignore_liq_below and pair_data['volume']['h24'] > ignore_vol_below:
-                        if token_contract not in self.list:
-                            self.list[token_contract] = {}
+                    if dicQuoteTokens is None or pair_data['quoteToken']['address'].lower() in dicQuoteTokens:
+                        if pair_data['liquidity']['usd'] > ignore_liq_below and pair_data['volume']['h24'] > ignore_vol_below:
+                            if token_contract not in self.list:
+                                self.list[token_contract] = {}
 
-                        pair = Pair(pair_data)
-                        self.list[token_contract][pair_contract] = pair
+                            pair = Pair(pair_data)
+                            self.list[token_contract][pair_contract] = pair
+
+                print(f'{token_contract} contract retrieved: {len(data["pairs"])} pairs')
+
+
+            if len(coin_address_list) > 30:
+                time.sleep(3)
+            elif len(coin_address_list) > 20:
+                time.sleep(2)
+            else:
+                time.sleep(1)
+
 
 class Pair:
 
