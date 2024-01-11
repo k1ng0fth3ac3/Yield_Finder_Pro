@@ -311,22 +311,19 @@ class Analytics:
 
 
     def get_pair_info(self, top_N_pools: int = 10, max_tvl_delta: float = 0.4):
-        # There is an issue if we are trying to get data for contracts that have too many pairs (eg. USDT / WBNB)
 
-
-
-        contract_list = []
-        dicQuoteTokens = {}
+        dicPairs = {}       # base + %20 + quote
 
         for index, pool in enumerate(self.dicPools.values(), start=1):
             if index > top_N_pools:
                 break
 
-            contract_list.append(pool.contract_base.lower())
-            dicQuoteTokens[pool.contract_quote] = pool.quote_token.lower()
+            if f'{pool.contract_base.lower()}%20{pool.quote_token.lower()}' not in dicPairs:
+                dicPairs[f'{pool.contract_base.lower()}%20{pool.quote_token.lower()}'] = 1
 
 
-        self.contracts.get_pairs(coin_address_list=contract_list, dicQuoteTokens=dicQuoteTokens)
+        #self.contracts.get_pairs(coin_address_list=contract_list, dicQuoteTokens=dicQuoteTokens)
+        self.contracts.get_pairs_by_search(dicTokenPairs=dicPairs)
 
         for index, pool in enumerate(self.dicPools.values(), start=1):
 
@@ -338,23 +335,29 @@ class Analytics:
                 pairs = self.contracts.list[pool.contract_base]
 
                 min_delta_tvl = 1
+                min_delta_vol = 1
 
                 # Check for the closest match (TVL the most reliable indicator)
                 if pool.tvl_history is not None and 0 in pool.tvl_history:
                     for contract, pair in pairs.items():
 
-                        if contract == '0xf9878a5dd55edc120fde01893ea713a4f032229c':
-                            print('found')
-
                         if abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0])) < min_delta_tvl:
                             min_delta_tvl = abs((float(pool.tvl_history[0]) - float(pair.liquidity_usd)) / float(pool.tvl_history[0]))
                             closest_contract = contract     # Best one so far
 
-                if min_delta_tvl < max_tvl_delta:
+                        if abs((float(pool.volume_history[0]) - float(pair.volumes['h24'])) / float(pool.volume_history[0])) < min_delta_vol:
+                            min_delta_vol = abs((float(pool.volume_history[0]) - float(pair.volumes['h24'])) / float(pool.volume_history[0]))
+
+
+                if min_delta_tvl != 1:
+                    # High discrepency between DefiLlama TVL and the actual TVL (the APY might be hence incorrect)
                     pool.pair_contract = self.contracts.list[pool.contract_base][closest_contract]
                 else:
-                    #print(f'{pool.symbol} -- {pool.db_info_id} -- {pool.contract_base} -- {min_delta_tvl} -- {len(pairs)}')
+                    # Couldn't find the pair at all (we have more than 30 matches and we retrieve only first 30 from API)
                     pool.pair_contract = None
+
+                if min_delta_tvl < max_tvl_delta:
+                    pool.data_discrepency = True  # Flag the pool
             else:
                 pool.pair_contract = None
 
@@ -493,9 +496,9 @@ class Analytics:
                 # ----------/
                 # ---------- Volatility
                 if 'volatility_14d' in pool.price_analytics and pool.price_analytics['volatility_14d'] is not None:
-                    pool.price_score = pool.price_score + float(pool.price_analytics['stdev_14d']) * -5
+                    pool.price_score = pool.price_score + float(pool.price_analytics['stdev_14d']) * -7.5
                 if 'volatility_7d' in pool.price_analytics and pool.price_analytics['volatility_7d'] is not None:
-                    pool.price_score = pool.price_score + float(pool.price_analytics['stdev_7d']) * -5
+                    pool.price_score = pool.price_score + float(pool.price_analytics['stdev_7d']) * -7.5
                 # ----------/
 
 
@@ -515,6 +518,15 @@ class Analytics:
                 self.dicPools[pool.db_info_id] = pool
 
 
+    def final_Scoring(self):
+
+        for pool in self.dicPools.values():
+            pass
+
+
+
+
+
 class Pool:
 
     def __init__(self, dicPoolData):
@@ -530,6 +542,7 @@ class Pool:
 
         self.fee_rate: float                        # Take from the meta (need to parse and doesn't exist for 80% of cases)
 
+        self.data_discrepency: bool = False          # Discrepency between DefiLlama and
         self.tvl_history: dict                      # TVl history (0 = today, 1 = yesterday...)
         self.volume_history: dict                   # Volume history (0 = today, 1 = yesterday...)
         self.apy_history: dict                      # APY history (0 = today, 1 = yesterday...)
@@ -555,7 +568,9 @@ class Pool:
         self.score: float                           # Total score for the pool
         self.rank: int                              # Rank based on the score
         self.price_score: float = 0                 # Score based on the price
-        self.total_score: float                     # Previous score + price score
+        self.total_score: float = 0                 # Previous score + price score
+        self.risk_score: float = 0                  # Higher the better (based on TVL and FDV)
+        self.final_score: float = 0                 # tvl_to_vol score + price score + risk score
 
         self.pair_contract: Pair = None             # Pair object (retrieved from DexTools API)
         self.price_history: dict                    # Key: distance in days from today, value: Price
