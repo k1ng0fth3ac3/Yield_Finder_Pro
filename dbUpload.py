@@ -713,9 +713,13 @@ class Upload:
             data_row = ()
             data_row = (f'{datetime.datetime.now().date()}',
                         pool.rank,
+                        pool.data_discrepency,
+
                         pool.total_score,
                         pool.score,
                         pool.price_score,
+                        pool.risk_score,
+                        pool.apy_score,
 
                         f'{pool.symbol}',
                         pool.age,
