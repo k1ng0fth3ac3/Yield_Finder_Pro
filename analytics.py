@@ -319,7 +319,7 @@ class Analytics:
                 break
 
             if f'{pool.contract_base.lower()}%20{pool.quote_token.lower()}' not in dicPairs:
-                dicPairs[f'{pool.contract_base.lower()}%20{pool.quote_token.lower()}'] = 1
+                dicPairs[f'{pool.contract_base.lower()}%20{pool.contract_quote.lower()}'] = 1
 
 
         #self.contracts.get_pairs(coin_address_list=contract_list, dicQuoteTokens=dicQuoteTokens)
@@ -496,11 +496,13 @@ class Analytics:
                 # ----------/
                 # ---------- Volatility
                 if 'volatility_14d' in pool.price_analytics and pool.price_analytics['volatility_14d'] is not None:
-                    pool.price_score = pool.price_score + float(pool.price_analytics['stdev_14d']) * -7.5
+                    pool.price_score = pool.price_score + float(pool.price_analytics['volatility_14d']) * -7.5
                 if 'volatility_7d' in pool.price_analytics and pool.price_analytics['volatility_7d'] is not None:
-                    pool.price_score = pool.price_score + float(pool.price_analytics['stdev_7d']) * -7.5
+                    pool.price_score = pool.price_score + float(pool.price_analytics['volatility_7d']) * -7.5
                 # ----------/
 
+                if pool.price_score < -100:
+                    pool.price_score = -100
 
                 pool.total_score = pool.score + pool.price_score
             else:
@@ -512,16 +514,46 @@ class Analytics:
 
         rank = 0    # Reset
         for pool in dicSorted_pools:
-            if pool.total_score > 0:
-                rank +=1
-                pool.rank = rank
-                self.dicPools[pool.db_info_id] = pool
+            #if pool.total_score > 0:
+            rank +=1
+            pool.rank = rank
+            self.dicPools[pool.db_info_id] = pool
 
 
     def final_Scoring(self):
+        # Final scode = Risk score + tvl_vol score + price score + apy score
+        # Risk score = FDV / 100000000 + TVL / 100000
+        # APY score = APY * 0.15 for scores below 100, 100 + APY * 0.025 for scores above 100, max 300
 
         for pool in self.dicPools.values():
-            pass
+
+            if float(pool.apy_base) * 0.15 > 100:
+                if 100 + float(pool.apy_base) * 0.025 > 300:
+                    pool.apy_score = 300
+                else:
+                    pool.apy_score = 100 + float(pool.apy_base) * 0.025
+            else:
+                pool.apy_score = float(pool.apy_base) * 0.15
+
+
+            if pool.tvl_history is not None and pool.pair_contract is not None:
+                pool.risk_score = float(pool.pair_contract.fdv) / 100000000 + float(pool.tvl_history[0]) / 100000
+            else:
+                pool.risk_score = 0
+
+
+            pool.final_score = pool.risk_score + pool.apy_score + pool.score + pool.price_score
+
+
+        dicSorted_pools = sorted(self.dicPools.values(), key=lambda x: x.final_score, reverse=True)
+        self.dicPools = {}  # Reset the dictionary
+
+        rank = 0    # Reset
+        for pool in dicSorted_pools:
+            if pool.final_score > 0:
+                rank +=1
+                pool.rank = rank
+                self.dicPools[pool.db_info_id] = pool
 
 
 
@@ -570,6 +602,7 @@ class Pool:
         self.price_score: float = 0                 # Score based on the price
         self.total_score: float = 0                 # Previous score + price score
         self.risk_score: float = 0                  # Higher the better (based on TVL and FDV)
+        self.apy_score: float = 0
         self.final_score: float = 0                 # tvl_to_vol score + price score + risk score
 
         self.pair_contract: Pair = None             # Pair object (retrieved from DexTools API)
