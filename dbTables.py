@@ -287,18 +287,23 @@ class Tables_info:
     def result_table(self):
         dicCols = {}
         dicCols['id'] = 'SERIAL PRIMARY KEY'
+
         dicCols['date_added'] = 'DATE'
         dicCols['rank'] = 'INT'
-        dicCols['total_score'] = 'DECIMAL(5,2)'
-        dicCols['tvl_vol_score'] = 'DECIMAL(5,2)'
-        dicCols['price_score'] = 'DECIMAL(5,2)'
+        dicCols['data_discrepency'] = 'BOOL'
+
+        dicCols['total_score'] = 'DECIMAL(6,2)'
+        dicCols['tvl_vol_score'] = 'DECIMAL(6,2)'
+        dicCols['price_score'] = 'DECIMAL(6,2)'
+        dicCols['risk_score'] = 'DECIMAL(6,2)'
+        dicCols['apy_score'] = 'DECIMAL(6,2)'
 
         dicCols['symbol'] = 'VARCHAR(20)'
         dicCols['age'] = 'INT'
         dicCols['apy_base'] = 'DECIMAL(12,4)'
         dicCols['chain'] = 'VARCHAR(35)'
         dicCols['protocol'] = 'VARCHAR(100)'
-        dicCols['fee_rate'] = 'DECIMAL(5,4)'
+        dicCols['fee_rate'] = 'DECIMAL(6,4)'
 
         dicCols['pair_address'] = 'VARCHAR(255)'
         dicCols['base_token'] = 'VARCHAR(100)'
@@ -312,21 +317,21 @@ class Tables_info:
         dicCols['price'] = 'DECIMAL(16,10)'
         dicCols['tvl'] = 'DECIMAL(14,0)'
         dicCols['volume'] = 'DECIMAL(14,0)'
-        dicCols['vol_tvl'] = 'DECIMAL(6,3)'
+        dicCols['vol_tvl'] = 'DECIMAL(7,3)'
 
-        dicCols['vol_tvl_above1_rate'] = 'DECIMAL(5,3)'
-        dicCols['vol_to_tvl_avg_3d'] = 'DECIMAL(5,3)'
-        dicCols['vol_to_tvl_avg_7d'] = 'DECIMAL(5,3)'
+        dicCols['vol_tvl_above1_rate'] = 'DECIMAL(7,3)'
+        dicCols['vol_to_tvl_avg_3d'] = 'DECIMAL(7,3)'
+        dicCols['vol_to_tvl_avg_7d'] = 'DECIMAL(7,3)'
 
         dicCols['price_trend_14d'] = 'VARCHAR(10)'
         dicCols['price_trend_7d'] = 'VARCHAR(10)'
-        dicCols['price_trend_confidence_14d'] = 'DECIMAL(5,3)'
-        dicCols['price_trend_confidence_7d'] = 'DECIMAL(5,3)'
-        dicCols['price_change_14d'] = 'DECIMAL(5,3)'
-        dicCols['price_change_7d'] = 'DECIMAL(5,3)'
-        dicCols['price_stdev_14d'] = 'DECIMAL(5,4)'
-        dicCols['price_stdev_7d'] = 'DECIMAL(5,4)'
-        dicCols['price_volatility_14d'] = 'DECIMAL(6,4)'
-        dicCols['price_volatility_7d'] = 'DECIMAL(6,4)'
+        dicCols['price_trend_confidence_14d'] = 'DECIMAL(7,3)'
+        dicCols['price_trend_confidence_7d'] = 'DECIMAL(7,3)'
+        dicCols['price_change_14d'] = 'DECIMAL(7,3)'
+        dicCols['price_change_7d'] = 'DECIMAL(7,3)'
+        dicCols['price_stdev_14d'] = 'DECIMAL(7,4)'
+        dicCols['price_stdev_7d'] = 'DECIMAL(7,4)'
+        dicCols['price_volatility_14d'] = 'DECIMAL(8,4)'
+        dicCols['price_volatility_7d'] = 'DECIMAL(8,4)'
 
         return dicCols
